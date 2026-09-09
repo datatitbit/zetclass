@@ -47,7 +47,7 @@
     if (school.logo) { var img = document.createElement('img'); img.src = school.logo; img.className = 'rc-logo'; img.alt = school.name + ' logo'; logo = img; }
     else { logo.title = 'No school logo uploaded yet — add one in Settings → Profile → School logo.'; logo.innerHTML = SCHOOL_ICON_SVG; }
     var titles = elx('div', 'rc-titles');
-    titles.appendChild(elx('div', 'rc-school', school.name.toUpperCase()));
+    titles.appendChild(elx('div', 'rc-school', (school.name || 'School').toUpperCase()));
     if (school.motto) titles.appendChild(elx('div', 'rc-contact', school.motto));
     titles.appendChild(elx('div', 'rc-contact', [school.address, school.location].filter(Boolean).join('   ·   ')));
     titles.appendChild(elx('div', 'rc-contact',

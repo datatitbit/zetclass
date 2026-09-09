@@ -130,7 +130,21 @@
         if (ro) { ci.disabled = true; ei.disabled = true; }
         var totalCell = el('td', { class: 'right' });
         var gradeCell = el('td');
+        // Same 0–max bounds check the CSV bulk-upload path already enforces
+        // (scoreUpload() below) — manual entry must not be a looser path to
+        // the same data. Out-of-range values are flagged in red and blocked
+        // from saving rather than silently accepted (previously: no check at
+        // all here, so e.g. "9999" in a max-50 field saved as-is).
+        function fieldError(input, max) {
+          if (input.value === '') return false;
+          var n = Number(input.value);
+          return isNaN(n) || n < 0 || n > max;
+        }
         function recompute() {
+          var ciErr = fieldError(ci, classMax), eiErr = fieldError(ei, examMax);
+          ci.style.outline = ciErr ? '2px solid #b3261e' : '';
+          ei.style.outline = eiErr ? '2px solid #b3261e' : '';
+          if (ciErr || eiErr) { totalCell.textContent = '⚠ invalid'; gradeCell.textContent = ''; return; }
           var tot = G.computeTotal(ci.value || 0, ei.value || 0);
           var band = G.gradeFor(tot, App.ctx.gradeBands.slice().sort(function (a, b) { return b.min - a.min; }));
           totalCell.textContent = (ci.value === '' && ei.value === '') ? '' : tot;
@@ -143,6 +157,16 @@
       t.appendChild(tb);
       card.appendChild(el('div', { class: 'table-wrap' }, [t]));
       if (!ro) card.appendChild(el('button', { class: 'btn gold', style: 'margin-top:.7rem', text: 'Save scores', onclick: function () {
+        var badRows = students.filter(function (s) {
+          var io = inputs[s.student_id];
+          var cs = io.ci.value === '' ? null : Number(io.ci.value);
+          var es = io.ei.value === '' ? null : Number(io.ei.value);
+          return (cs != null && (isNaN(cs) || cs < 0 || cs > classMax)) || (es != null && (isNaN(es) || es < 0 || es > examMax));
+        });
+        if (badRows.length) {
+          U.toast('Fix out-of-range score(s) for ' + badRows.map(function (s) { return s.first_name + ' ' + s.last_name; }).join(', ') + ' before saving (class 0–' + classMax + ', exam 0–' + examMax + ').', 'err');
+          return;
+        }
         var ops = students.map(function (s) {
           var io = inputs[s.student_id];
           var cs = io.ci.value === '' ? null : Number(io.ci.value);
