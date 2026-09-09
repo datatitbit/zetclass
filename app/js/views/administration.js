@@ -369,6 +369,35 @@
     var dashCb = el('input', { type: 'checkbox' }); if (s && s.dashboard_full_access) dashCb.checked = true;
     f.appendChild(el('div', { class: 'field' }, [el('label', { class: 'check-label' }, [dashCb, document.createTextNode(' Full dashboard access (Finance KPIs, not just Enrolment/Attendance) — Admin and Director already have this by default; tick this for anyone else (e.g. whoever actually handles fees/accounts) who should see it too.')])]));
 
+    // ---- Per-person module restriction (Other staff only) ----
+    // "Other staff" is one shared role for very different jobs — cooks,
+    // security, front desk, accounts. By default everyone in it gets the
+    // same modules. This lets an Admin narrow one individual person down to
+    // only the modules they actually need, without changing the role-wide
+    // default for everyone else tagged "Other staff". Leave everything
+    // unticked (or tick them all) for "no restriction" — the normal role
+    // default applies.
+    var restrictModules = global.SMS_SEED.constants.MODULES.filter(function (m) { return ['Finance', 'Accounting', 'Payroll', 'Inventory', 'Students', 'Administration', 'Dashboard', 'Communication'].indexOf(m) !== -1; });
+    var restrictBox = el('div', { class: 'field' }, [
+      el('label', { text: 'Restrict this person to specific modules (optional)' }),
+      el('div', { class: 'help', text: 'Only applies to the "Other staff" role. Leave all unticked for no restriction (this person gets the normal "Other staff" access). Tick specific modules to limit them to just those — e.g. a cook or security account might only need Dashboard.' })
+    ]);
+    var restrictWrap = el('div');
+    var curRestrict = (s && s.module_restrict) || [];
+    restrictModules.forEach(function (m) {
+      var cb = el('input', { type: 'checkbox', value: m }); if (curRestrict.indexOf(m) !== -1) cb.checked = true;
+      restrictWrap.appendChild(el('label', { class: 'check-label', style: 'display:block' }, [cb, document.createTextNode(' ' + m)]));
+    });
+    restrictBox.appendChild(restrictWrap);
+    f.appendChild(restrictBox);
+    function syncRestrictVisibility() {
+      var roleSel = document.getElementById('f_role');
+      restrictBox.style.display = (roleSel && roleSel.value === 'Other staff') ? '' : 'none';
+    }
+    var roleSelEl = document.getElementById('f_role');
+    if (roleSelEl) roleSelEl.addEventListener('change', syncRestrictVisibility);
+    syncRestrictVisibility();
+
     U.modal({ title: s ? 'Edit staff' : 'Add staff', wide: true, body: f, actions: [
       { label: 'Cancel', onClick: function (x) { x(); } },
       { label: 'Save', kind: 'gold', onClick: function (x) {
@@ -376,6 +405,12 @@
         v.class_ids = U.$all('input[type=checkbox]', sel).filter(function (c) { return c.checked; }).map(function (c) { return c.value; });
         v.subject_teacher_of = assignments.filter(function (a) { return a.subject && (a.class_ids || []).length; });
         v.dashboard_full_access = dashCb.checked;
+        // Only meaningful for "Other staff" — cleared for every other role so a
+        // stale restriction never lingers if someone's role is later changed
+        // away from "Other staff" and back.
+        v.module_restrict = (v.role === 'Other staff')
+          ? U.$all('input[type=checkbox]', restrictWrap).filter(function (c) { return c.checked; }).map(function (c) { return c.value; })
+          : [];
         if (s) DB.update('staff', s.id, v).then(function () { x(); U.toast('Saved.'); done(); });
         else {
           var manualCode = v.staff_id && v.staff_id.trim();

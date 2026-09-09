@@ -144,6 +144,21 @@
   }
   App.parentRecord = function () { return parentRecordFor(App.user); };
 
+  // "Other staff" is a broad catch-all role (front desk, cooks, security,
+  // whoever handles fees/accounts — see canFullDashboard's comment above).
+  // By default every person in that role shares identical module access,
+  // which means a security guard's account and an accounts clerk's account
+  // are functionally identical. This lets an Admin optionally scope an
+  // INDIVIDUAL "Other staff" person down to a subset of their role's normal
+  // modules (Administration → Staff → "Restrict to specific modules"),
+  // without having to change the role-wide default for everyone else in it.
+  // Unset/empty list = no restriction (default, unchanged behaviour).
+  function withinModuleRestrict(module) {
+    var st = App.myStaff();
+    if (!st || !Array.isArray(st.module_restrict) || !st.module_restrict.length) return true;
+    return st.module_restrict.indexOf(module) !== -1;
+  }
+
   App.can = function (module) {
     if (!App.user) return false;
     if (App.user.role === 'Admin') return true;      // Admin always full
@@ -154,7 +169,9 @@
       if (pr && pr.portal_enabled === false) return false;
     }
     var perms = App.permissions[App.user.role] || {};
-    return !!perms[module];
+    if (!perms[module]) return false;
+    if (App.user.role === 'Other staff' && !withinModuleRestrict(module)) return false;
+    return true;
   };
 
   // Can this role EDIT (create/update/delete) in the given module?
@@ -165,7 +182,10 @@
     if (role === 'Admin') return true;                         // edit everywhere
     if (role === 'Director' || role === 'Parent') return false; // view / download only
     if (role === 'Teacher') return module === 'Assessment' || module === 'Attendance';
-    if (role === 'Other staff') return ['Finance', 'Accounting', 'Payroll', 'Inventory', 'Students', 'Administration'].indexOf(module) !== -1;
+    if (role === 'Other staff') {
+      if (['Finance', 'Accounting', 'Payroll', 'Inventory', 'Students', 'Administration'].indexOf(module) === -1) return false;
+      return withinModuleRestrict(module); // per-person restriction, if one is set
+    }
     return false;
   };
 
