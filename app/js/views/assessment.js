@@ -211,6 +211,7 @@
     tools.appendChild(genBtn);
     panel.appendChild(tools); panel.appendChild(area);
     genBtn.addEventListener('click', function () { buildReports(area, clsSel.value, term); });
+    clsSel.addEventListener('change', function () { buildReports(area, clsSel.value, term); });
     if (classes.length) { clsSel.value = classes[0].id; buildReports(area, classes[0].id, term); }
   }
 

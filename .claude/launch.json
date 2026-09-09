@@ -1,0 +1,21 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "zetranova-portal",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["C:\\Users\\pc\\OneDrive\\Desktop\\Tech Cowork\\zetranovaportal\\devserver.js"],
+      "port": 5566
+    },
+    {
+      "name": "zetclass",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "C:\\Users\\pc\\AppData\\Local\\Temp\\claude\\C--Users-pc-OneDrive-Desktop-Tech-Cowork-Zetranova-Product-smswebapp1\\700abe4d-4f78-4474-8588-20f46e688a64\\scratchpad\\devserver.js",
+        "C:\\Users\\pc\\OneDrive\\Desktop\\Tech Cowork\\Zetranova Product\\zetclass\\app",
+        "5173"
+      ],
+      "port": 5173
+    }
+  ]
+}

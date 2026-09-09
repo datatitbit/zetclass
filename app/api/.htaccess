@@ -1,0 +1,4 @@
+# Allow direct access to index.php (the REST front controller).
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+</IfModule>

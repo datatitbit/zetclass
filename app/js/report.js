@@ -9,6 +9,14 @@
 
   function elx(tag, cls, txt) { var n = document.createElement(tag); if (cls) n.className = cls; if (txt != null) n.textContent = txt; return n; }
 
+  // Header placeholder icons — stroke uses currentColor so they inherit
+  // .rc-logo's existing color (#333) without any extra CSS. Left box: shown
+  // only until a school logo is uploaded (Settings → Profile → School logo).
+  // Right box: was an empty spacer only used to balance the header layout;
+  // now doubles as a visual placeholder for a future per-student photo field.
+  var SCHOOL_ICON_SVG = '<svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V10l7-5 7 5v11"/><path d="M9 21v-6h6v6"/><path d="M9 10h.01M15 10h.01"/></svg>';
+  var STUDENT_ICON_SVG = '<svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>';
+
   // Ensures a Template A record has the multi-format shape (checklistFormat +
   // checklistFormats), synthesising it from the legacy single-format
   // `checklistDomains` field for installs saved before formats existed.
@@ -37,7 +45,7 @@
     var head = elx('div', 'rc-head');
     var logo = elx('div', 'rc-logo');
     if (school.logo) { var img = document.createElement('img'); img.src = school.logo; img.className = 'rc-logo'; img.alt = school.name + ' logo'; logo = img; }
-    else logo.textContent = initials(school.name);
+    else { logo.title = 'No school logo uploaded yet — add one in Settings → Profile → School logo.'; logo.innerHTML = SCHOOL_ICON_SVG; }
     var titles = elx('div', 'rc-titles');
     titles.appendChild(elx('div', 'rc-school', school.name.toUpperCase()));
     if (school.motto) titles.appendChild(elx('div', 'rc-contact', school.motto));
@@ -47,7 +55,10 @@
     titles.appendChild(elx('div', 'rc-contact',
       [school.email && ('Email: ' + school.email), school.website].filter(Boolean).join('   ')));
     head.appendChild(logo); head.appendChild(titles);
-    head.appendChild(elx('div', 'rc-logo', '')); // balance spacing
+    var photoBox = elx('div', 'rc-logo'); // balances header spacing; reserved for a future per-student photo
+    photoBox.title = 'Student photo (not yet available) — placeholder for balance.';
+    photoBox.innerHTML = STUDENT_ICON_SVG;
+    head.appendChild(photoBox);
     card.appendChild(head);
 
     var termObj = (ac.terms || []).filter(function (x) { return x.n === ac.current_term; })[0] || {};
