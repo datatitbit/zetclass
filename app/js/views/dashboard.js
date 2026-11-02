@@ -45,6 +45,10 @@
         if (App.can('Inventory')) stats.appendChild(s(low.length, 'Low-stock items', 'inventory', low.length > 0));
         container.appendChild(stats);
 
+        // A brand-new school opens onto a screen of zeros — tell the Admin what to do first.
+        if (allStudents.length === 0) gettingStarted(container);
+        sampleDataBanner(container);
+
         // ---- Part 1: Enrolment & Attendance (all staff) ----
         enrolAttendanceCard(container, allStudents, attendance);
 
@@ -56,6 +60,52 @@
         upcoming(container);
         announcements(container);
       });
+  }
+
+  /* ---------------- Sample-data reminder (Admin only) ---------------- */
+  // While pretend pupils/parents/staff/stock are in the school, say so plainly and
+  // offer the one-click way out, so nobody mistakes them for real records.
+  function sampleDataBanner(container) {
+    if (App.user.role !== 'Admin' || !global.SampleData) return;
+    var slot = el('div'); container.appendChild(slot);
+    global.SampleData.counts().then(function (c) {
+      if (!c.total) return;
+      slot.appendChild(el('div', { class: 'card', style: 'border:1px solid #e6c36a;background:#fff8e6' }, [
+        el('h3', { text: 'You are looking at sample data' }),
+        el('p', { text: 'Some of the pupils, fees, stock and other records you see are pretend ones so you can try every screen. When you are ready to use Zetclass for real, remove them. Anything you add yourself stays.' }),
+        el('div', { class: 'btn-row' }, [
+          el('button', { class: 'btn danger', text: 'Remove all sample data…', onclick: function () {
+            U.confirm('Remove ALL sample data?\n\nThis deletes the sample pupils, parents, staff, fees, attendance, scores, stock, accounts and messages, and anything recorded against them.\n\nRecords you added yourself are NOT touched.\n\n(To remove only some groups, use Settings → Sample Data instead.)', function () {
+              global.SampleData.remove().then(function () { return App.refresh(); }).then(function () { U.toast('Sample data removed.'); render(container); })
+                .catch(function () { U.toast('Could not remove the sample data. Please try again.', 'err'); });
+            });
+          } }),
+          el('a', { class: 'btn ghost', href: '#/settings', text: 'Choose what to remove…', onclick: function () { try { global.sessionStorage.setItem('zc-settings-tab', 'Sample Data'); } catch (e) { /* tab simply opens on Profile */ } } })
+        ])
+      ]));
+    });
+  }
+
+  /* ---------------- First-run guide (Admin only, empty school) ---------------- */
+  // Disappears by itself the moment the first student is added, so there is
+  // nothing to dismiss or remember.
+  function gettingStarted(container) {
+    if (App.user.role !== 'Admin') return;
+    var steps = [
+      ['Add your school’s details and logo', 'settings', 'Settings → Profile'],
+      ['Check your classes, subjects and fees', 'settings', 'Settings → Classes & Subjects, and Fees'],
+      ['Add your first students', 'students', 'Students → add one by one, or upload a spreadsheet'],
+      ['Add your teachers and staff', 'administration', 'Administration → Staff']
+    ];
+    var list = el('ol', { class: 'start-steps' });
+    steps.forEach(function (st) {
+      list.appendChild(el('li', {}, [el('a', { href: '#/' + st[1], text: st[0] }), el('div', { class: 'help', text: st[2] })]));
+    });
+    container.appendChild(el('div', { class: 'card' }, [
+      el('h3', { text: 'Welcome — let’s set up your school' }),
+      el('p', { class: 'muted', text: 'Four quick steps. Each one opens the right page for you.' }),
+      list
+    ]));
   }
 
   /* ---------------- Part 1: Enrolment & Attendance ---------------- */

@@ -38,6 +38,7 @@ function auth_verify_password($password, $saltHex, $hashHex) {
 /* ---- tokens ---- */
 function token_issue($secret, $claims, $ttl) {
     $claims['iat'] = time();
+    $claims['iatm'] = microtime(true);   // precise issue time, so "signed in before the password reset" is exact to the microsecond
     $claims['exp'] = time() + (int)$ttl;
     $payload = b64url(json_encode($claims));
     $sig = b64url(hash_hmac('sha256', $payload, $secret, true));

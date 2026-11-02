@@ -4,81 +4,107 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0f5e5e">
-  <title>Zetclass</title>
+  <title>Zetclass — school management made simple</title>
+  <meta name="description" content="Zetclass helps schools manage pupils, attendance, report cards, fees and payroll from a phone or computer. Start a free 30-day trial.">
+  <link rel="canonical" href="https://zetclass.com/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Zetclass">
+  <meta property="og:title" content="Zetclass — school management made simple">
+  <meta property="og:description" content="Pupils, attendance, report cards, fees and payroll in one place. Free for 30 days.">
+  <meta property="og:url" content="https://zetclass.com/">
+  <meta name="twitter:card" content="summary">
 
   <!-- PWA: installable + offline-capable -->
-  <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" type="image/svg+xml" href="icon.svg">
-  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" type="image/svg+xml" href="/icon.svg">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Zetclass">
 
-  <link rel="stylesheet" href="css/app.css?v=20260814">
-  <link rel="stylesheet" href="css/report.css?v=20260814">
+  <link rel="stylesheet" href="/css/app.css?v=20261104">
+  <link rel="stylesheet" href="/css/report.css?v=20261104">
 </head>
 <body>
   <div id="root"><div class="loader">Loading…</div></div>
+  <noscript><div style="max-width:30rem;margin:3rem auto;padding:0 1rem;font-family:system-ui,sans-serif;line-height:1.5">
+    <h1>Zetclass needs JavaScript</h1>
+    <p>Please turn JavaScript on in your browser settings (or try a different browser such as Chrome), then reload this page.</p>
+  </div></noscript>
   <div id="toast-host" aria-live="polite" role="status"></div>
 
   <script>
-    // ---- API base URL per environment (see /DEPLOY.md) ----
-    // Render hosts this static frontend ONLY and never runs api/index.php.
-    // API_BASE must be a URL this page can reach the PHP API at:
-    //   - same-origin PHP host (frontend + api/ deployed together)  -> 'api/index.php'
-    //   - split-origin (frontend on Render, API on cPanel/Namecheap) -> the API's
-    //     full URL, e.g. 'https://api.zetclass.com/api/index.php'
-    // useApi stays false (Local/localStorage mode) until that PHP+MySQL API is
-    // actually deployed and reachable at API_BASE.
-    var API_BASE = 'api/index.php';
-    window.DB_CONFIG = { useApi: false, apiBase: API_BASE };
+    // ---- Which mode is this copy of the app running in? ----
+    //  * LIVE SERVICE (zetclass.com): real accounts on the server. Schools sign up,
+    //    get their own web address, and their data is stored in the MySQL database.
+    //  * Everywhere else (the free Render copy, a file on someone's computer):
+    //    the one-school, browser-only DEMO. Nothing is sent anywhere.
+    // To try the real service on your own machine, open any page once with
+    // ?api=1 on the end (e.g. http://127.0.0.1:8081/?api=1); ?api=0 switches it back.
+    (function () {
+      var host = location.hostname, qs = location.search, flag = null;
+      try {
+        if (/[?&]api=1\b/.test(qs)) sessionStorage.setItem('zc_api', '1');
+        if (/[?&]api=0\b/.test(qs)) sessionStorage.setItem('zc_api', '0');
+        flag = sessionStorage.getItem('zc_api');
+      } catch (e) { /* storage blocked: fall back to the default for this host */ }
+      var live = /^(www\.)?zetclass\.com$/i.test(host);
+      // The API sits at the site's root: an ABSOLUTE path, so it still resolves on
+      // school addresses like /st-marys-school/students.
+      window.DB_CONFIG = { useApi: flag === '1' || (live && flag !== '0'), apiBase: '/api/index.php' };
+    })();
+
+    // How schools reach YOU about subscribing or forgotten passwords. Shown on the
+    // sign-in and subscription screens. Leave a value empty to hide it.
+    window.ZETCLASS_CONTACT = { whatsapp: '', email: '' };
   </script>
 
   <!-- NOTE: every ?v= tag below must be bumped together, in step with
        sw.js's CACHE_VERSION. Bumping only the files you touched leaves
        browsers (and the installed PWA) serving stale copies of the rest. -->
-  <script src="js/seed.js?v=20260814"></script>
-  <script src="js/store.js?v=20260814"></script>
-  <script src="js/util.js?v=20260814"></script>
+  <script src="/js/seed.js?v=20261104"></script>
+  <script src="/js/store.js?v=20261104"></script>
+  <script src="/js/util.js?v=20261104"></script>
+  <script src="/js/sample-data.js?v=20261104"></script>
 
-  <script src="js/auth-lib.js?v=20260814"></script>
-  <script src="js/grading.js?v=20260814"></script>
-  <script src="js/finance-lib.js?v=20260814"></script>
-  <script src="js/payroll-lib.js?v=20260814"></script>
-  <script src="js/reports-lib.js?v=20260814"></script>
-  <script src="js/bulk.js?v=20260814"></script>
-  <script src="js/report.js?v=20260814"></script>
-  <script src="js/services.js?v=20260814"></script>
+  <script src="/js/auth-lib.js?v=20261104"></script>
+  <script src="/js/grading.js?v=20261104"></script>
+  <script src="/js/finance-lib.js?v=20261104"></script>
+  <script src="/js/payroll-lib.js?v=20261104"></script>
+  <script src="/js/reports-lib.js?v=20261104"></script>
+  <script src="/js/bulk.js?v=20261104"></script>
+  <script src="/js/report.js?v=20261104"></script>
+  <script src="/js/services.js?v=20261104"></script>
 
-  <script src="js/automation.js?v=20260814"></script>
+  <script src="/js/automation.js?v=20261104"></script>
 
-  <script src="js/license-lib.js?v=20260814"></script>
+  <script src="/js/license-lib.js?v=20261104"></script>
 
   <!-- Owner/platform console (the /admin area). Loaded before app.js so
        window.Platform already exists when app.js hands over to it. -->
-  <script src="js/platform.js?v=20260814"></script>
+  <script src="/js/platform.js?v=20261104"></script>
 
-  <script src="js/app.js?v=20260814"></script>
+  <script src="/js/app.js?v=20261104"></script>
 
-  <script src="js/views/dashboard.js?v=20260814"></script>
-  <script src="js/views/students.js?v=20260814"></script>
-  <script src="js/views/assessment.js?v=20260814"></script>
-  <script src="js/views/finance.js?v=20260814"></script>
-  <script src="js/views/attendance.js?v=20260814"></script>
-  <script src="js/views/communication.js?v=20260814"></script>
-  <script src="js/views/inventory.js?v=20260814"></script>
-  <script src="js/views/accounting.js?v=20260814"></script>
-  <script src="js/views/payroll.js?v=20260814"></script>
-  <script src="js/views/administration.js?v=20260814"></script>
-  <script src="js/views/settings.js?v=20260814"></script>
-  <script src="js/views/subscription.js?v=20260814"></script>
+  <script src="/js/views/dashboard.js?v=20261104"></script>
+  <script src="/js/views/students.js?v=20261104"></script>
+  <script src="/js/views/assessment.js?v=20261104"></script>
+  <script src="/js/views/finance.js?v=20261104"></script>
+  <script src="/js/views/attendance.js?v=20261104"></script>
+  <script src="/js/views/communication.js?v=20261104"></script>
+  <script src="/js/views/inventory.js?v=20261104"></script>
+  <script src="/js/views/accounting.js?v=20261104"></script>
+  <script src="/js/views/payroll.js?v=20261104"></script>
+  <script src="/js/views/administration.js?v=20261104"></script>
+  <script src="/js/views/settings.js?v=20261104"></script>
+  <script src="/js/views/subscription.js?v=20261104"></script>
 
   <!-- PWA: register the service worker (offline + installable) -->
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('sw.js').catch(function () {});
+        navigator.serviceWorker.register('/sw.js').catch(function () {});
       });
     }
   </script>

@@ -1,4 +1,13 @@
-# Allow direct access to index.php (the REST front controller).
-<IfModule mod_rewrite.c>
-  RewriteEngine On
-</IfModule>
+# Zetclass API folder rules.
+Options -Indexes
+
+# Only index.php is meant to be opened from a browser. The other PHP files are
+# loaded BY index.php on the server, never directly by a visitor.
+<FilesMatch "^(config|config\.local|config\.local\.example|db|auth|services-stub|hashpass)\.php$">
+  Require all denied
+</FilesMatch>
+
+# Never downloadable: starter data, database scripts, notes, tools.
+<FilesMatch "\.(json|sql|md|sqlite|sqlite-journal|log|bak)$">
+  Require all denied
+</FilesMatch>

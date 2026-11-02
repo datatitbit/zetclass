@@ -10,7 +10,7 @@
  * ============================================================ */
 'use strict';
 
-var CACHE_VERSION = 'v20260814';
+var CACHE_VERSION = 'v20261104';
 var CACHE_NAME = 'zetclass-' + CACHE_VERSION;
 
 // Minimum shell needed to boot offline. Everything else is cached
@@ -47,6 +47,12 @@ self.addEventListener('fetch', function (event) {
 
   var url = new URL(req.url);
   if (url.origin !== self.location.origin) { return; } // leave cross-origin requests alone
+
+  // NEVER cache the API. Its answers are private, per-school and change often
+  // (student records, subscription status, trial days). Caching them would show
+  // one school's data to the next person on a shared computer and let an ended
+  // trial still look active. The browser handles /api/ requests directly.
+  if (url.pathname.indexOf('/api/') === 0) { return; }
 
   // App navigation: try the network first so an online user always gets the
   // latest code; fall back to the cached page when offline.

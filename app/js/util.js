@@ -71,7 +71,7 @@
 
   function confirmDialog(message, onYes) {
     modal({
-      title: 'Please confirm', body: el('p', { text: message }),
+      title: 'Please confirm', body: el('p', { text: message, style: 'white-space:pre-line' }),
       actions: [
         { label: 'Cancel', kind: '', onClick: function (c) { c(); } },
         { label: 'Yes', kind: 'danger', onClick: function (c) { c(); onYes(); } }

@@ -1161,15 +1161,6 @@
       "system": false
     },
     {
-      "key": "siblings",
-      "label": "Siblings in this school",
-      "type": "siblings",
-      "required": false,
-      "section": "personal",
-      "system": false,
-      "help": "Add each sibling already enrolled here, with their class."
-    },
-    {
       "key": "special_educational_need",
       "label": "Special educational need (if any)",
       "type": "text",
@@ -1344,6 +1335,11 @@
       "netPosition"
     ]
   },
+  "demoSettings": {
+    "id": "demo-1",
+    "school_id": "sch-1",
+    "demo_login_enabled": true
+  },
   "labels": {
     "id": "lab-1",
     "school_id": "sch-1",
@@ -1445,25 +1441,27 @@
     {
       "id": "u-admin",
       "school_id": "sch-1",
-      "name": "School Administrator",
+      "name": "Admin",
       "username": "admin",
       "role": "Admin",
       "staff_id": "SF0001",
       "linked_student_ids": [],
-      "password_salt": "bdd6096a9cccf365986520af2c6c38cd",
-      "password_hash": "5e53a758512b9074082dfd890884eba14d56061b728d130ef2a23eb1e3ecb764",
+      "is_demo": true,
+      "password_salt": "801996da7c05539ac10e6f24afb4d0d6",
+      "password_hash": "13c96df114026eb5585524e418b7d24f422b5ccfb982ab5dfc4bbbc96d7293ef",
       "must_change_password": true
     },
     {
       "id": "u-dir",
       "school_id": "sch-1",
-      "name": "The Director",
+      "name": "Headteacher",
       "username": "director",
       "role": "Director",
       "staff_id": "SF0002",
       "linked_student_ids": [],
-      "password_salt": "7ff64936b8ce0f27cbdeed5a5cc765d4",
-      "password_hash": "84fe3ec4a95b5e494b3948ee202fa54fbfeab91ba4e9c18d6ab7a84f6c74719c",
+      "is_demo": true,
+      "password_salt": "726e4a07e4f2520116c93d54d8be74bb",
+      "password_hash": "6fca94685b351d4fc0de847e6bcd440abf9593fd588acda346d634fbc29a87ee",
       "must_change_password": true
     },
     {
@@ -1477,20 +1475,22 @@
         "cl-b1"
       ],
       "linked_student_ids": [],
-      "password_salt": "04676b70f2981d9df4f2d798b15da396",
-      "password_hash": "c7ec5397a81a36e91c3ec1133215f98381e1c46b0cca0868906f80f7be4587da",
+      "is_demo": true,
+      "password_salt": "1e521ab3eb3d3f5bff0462190ea9eef6",
+      "password_hash": "d3f5d81d2cdb78af4cd59958e71fa09dc2fc501ddb7ca43cb75358f7c01e2327",
       "must_change_password": true
     },
     {
       "id": "u-staff",
       "school_id": "sch-1",
-      "name": "Front Desk",
+      "name": "Account/Finance Officer",
       "username": "staff",
       "role": "Other staff",
       "staff_id": "SF0004",
       "linked_student_ids": [],
-      "password_salt": "a4e321aa36c33a28e0c94c9b8cdf62cf",
-      "password_hash": "119570daabe181e0cfbebf03cc76afcccc5d6bf1721b7b1d8902102ed146b019",
+      "is_demo": true,
+      "password_salt": "c82d75e7a982657abaab6d7928e5d55a",
+      "password_hash": "6a8c3db8ad51f7cd31e2c327c53a993f754a714634897bf17614005f01c13f77",
       "must_change_password": true
     },
     {
@@ -1500,10 +1500,12 @@
       "username": "parent",
       "role": "Parent",
       "linked_student_ids": [
-        "ST0001"
+        "ST0001",
+        "ST0002"
       ],
-      "password_salt": "bd118eecf734755b7e7691fc18b52c14",
-      "password_hash": "ba3af436dd8f9363645143b03709483a4ea07da9b6b7fe7c43cb541617ece706",
+      "is_demo": true,
+      "password_salt": "45f5558dbac1e710faae477606f6beb5",
+      "password_hash": "43715fc1427c99b4274c03a585233547449e99427b4d942dd792cc9b6fc87dee",
       "must_change_password": true
     }
   ],
@@ -1512,7 +1514,7 @@
       "id": "st-1",
       "school_id": "sch-1",
       "staff_id": "SF0001",
-      "name": "School Administrator",
+      "name": "Admin",
       "role": "Admin",
       "phone": "+233 00 000 0001",
       "class_ids": [],
@@ -1528,7 +1530,7 @@
       "id": "st-2",
       "school_id": "sch-1",
       "staff_id": "SF0002",
-      "name": "The Director",
+      "name": "Headteacher",
       "role": "Director",
       "phone": "+233 00 000 0002",
       "class_ids": [],
@@ -1562,12 +1564,12 @@
       "id": "st-4",
       "school_id": "sch-1",
       "staff_id": "SF0004",
-      "name": "Front Desk",
+      "name": "Account/Finance Officer",
       "role": "Other staff",
       "phone": "+233 00 000 0004",
       "class_ids": [],
       "subject_teacher_of": [],
-      "dashboard_full_access": false,
+      "dashboard_full_access": true,
       "basic_salary": 1200,
       "allowances": 100,
       "employee_type": "Part-time",
@@ -1592,7 +1594,8 @@
       "allowances": 150,
       "employee_type": "Full-time",
       "payment_method": "MoMo",
-      "payroll_overrides": {}
+      "payroll_overrides": {},
+      "is_demo": true
     },
     {
       "id": "st-6",
@@ -1611,7 +1614,8 @@
       "allowances": 150,
       "employee_type": "Full-time",
       "payment_method": "MoMo",
-      "payroll_overrides": {}
+      "payroll_overrides": {},
+      "is_demo": true
     },
     {
       "id": "st-7",
@@ -1630,7 +1634,8 @@
       "allowances": 200,
       "employee_type": "Full-time",
       "payment_method": "MoMo",
-      "payroll_overrides": {}
+      "payroll_overrides": {},
+      "is_demo": true
     },
     {
       "id": "st-8",
@@ -1659,7 +1664,8 @@
       "allowances": 200,
       "employee_type": "Full-time",
       "payment_method": "Bank",
-      "payroll_overrides": {}
+      "payroll_overrides": {},
+      "is_demo": true
     },
     {
       "id": "st-9",
@@ -1688,7 +1694,8 @@
       "allowances": 200,
       "employee_type": "Full-time",
       "payment_method": "Bank",
-      "payroll_overrides": {}
+      "payroll_overrides": {},
+      "is_demo": true
     },
     {
       "id": "st-10",
@@ -1699,12 +1706,81 @@
       "phone": "+233 24 000 0010",
       "class_ids": [],
       "subject_teacher_of": [],
-      "dashboard_full_access": false,
+      "dashboard_full_access": true,
       "basic_salary": 1300,
       "allowances": 100,
       "employee_type": "Full-time",
       "payment_method": "MoMo",
-      "payroll_overrides": {}
+      "payroll_overrides": {},
+      "is_demo": true
+    },
+    {
+      "id": "st-11",
+      "school_id": "sch-1",
+      "staff_id": "SF0011",
+      "name": "Cook",
+      "role": "Other staff",
+      "phone": "+233 24 000 0011",
+      "class_ids": [],
+      "subject_teacher_of": [],
+      "dashboard_full_access": false,
+      "basic_salary": 900,
+      "allowances": 50,
+      "employee_type": "Full-time",
+      "payment_method": "Cash",
+      "payroll_overrides": {},
+      "is_demo": true
+    },
+    {
+      "id": "st-12",
+      "school_id": "sch-1",
+      "staff_id": "SF0012",
+      "name": "Cleaner",
+      "role": "Other staff",
+      "phone": "+233 24 000 0012",
+      "class_ids": [],
+      "subject_teacher_of": [],
+      "dashboard_full_access": false,
+      "basic_salary": 800,
+      "allowances": 50,
+      "employee_type": "Full-time",
+      "payment_method": "Cash",
+      "payroll_overrides": {},
+      "is_demo": true
+    },
+    {
+      "id": "st-13",
+      "school_id": "sch-1",
+      "staff_id": "SF0013",
+      "name": "Driver",
+      "role": "Other staff",
+      "phone": "+233 24 000 0013",
+      "class_ids": [],
+      "subject_teacher_of": [],
+      "dashboard_full_access": false,
+      "basic_salary": 850,
+      "allowances": 100,
+      "employee_type": "Full-time",
+      "payment_method": "Cash",
+      "payroll_overrides": {},
+      "is_demo": true
+    },
+    {
+      "id": "st-14",
+      "school_id": "sch-1",
+      "staff_id": "SF0014",
+      "name": "Security",
+      "role": "Other staff",
+      "phone": "+233 24 000 0014",
+      "class_ids": [],
+      "subject_teacher_of": [],
+      "dashboard_full_access": false,
+      "basic_salary": 850,
+      "allowances": 50,
+      "employee_type": "Full-time",
+      "payment_method": "Cash",
+      "payroll_overrides": {},
+      "is_demo": true
     }
   ],
   "parents": [
@@ -1718,7 +1794,8 @@
       "student_ids": [
         "ST0001",
         "ST0002"
-      ]
+      ],
+      "is_demo": true
     },
     {
       "id": "pa-3",
@@ -1730,7 +1807,8 @@
       "student_ids": [
         "ST0003",
         "ST0004"
-      ]
+      ],
+      "is_demo": true
     },
     {
       "id": "pa-5",
@@ -1742,7 +1820,8 @@
       "student_ids": [
         "ST0005",
         "ST0006"
-      ]
+      ],
+      "is_demo": true
     },
     {
       "id": "pa-7",
@@ -1752,297 +1831,672 @@
       "whatsapp": "+233 24 1000007",
       "email": "",
       "student_ids": [
-        "ST0007",
-        "ST0008"
-      ]
+        "ST0007"
+      ],
+      "is_demo": true
     },
     {
-      "id": "pa-9",
+      "id": "pa-8",
       "school_id": "sch-1",
-      "name": "Mr. Adjei",
-      "phone": "+233 24 1000009",
-      "whatsapp": "+233 24 1000009",
+      "name": "Mrs. Darko",
+      "phone": "+233 24 1000008",
+      "whatsapp": "+233 24 1000008",
       "email": "",
       "student_ids": [
-        "ST0009",
-        "ST0010"
-      ]
+        "ST0008",
+        "ST0009"
+      ],
+      "is_demo": true
     },
     {
-      "id": "pa-11",
+      "id": "pa-10",
       "school_id": "sch-1",
-      "name": "Mr. Sarpong",
-      "phone": "+233 24 1000011",
-      "whatsapp": "+233 24 1000011",
+      "name": "Mrs. Frimpong",
+      "phone": "+233 24 1000010",
+      "whatsapp": "+233 24 1000010",
       "email": "",
       "student_ids": [
-        "ST0011",
-        "ST0012"
-      ]
+        "ST0010",
+        "ST0011"
+      ],
+      "is_demo": true
     },
     {
-      "id": "pa-13",
+      "id": "pa-12",
       "school_id": "sch-1",
-      "name": "Mr. Quaye",
-      "phone": "+233 24 1000013",
-      "whatsapp": "+233 24 1000013",
+      "name": "Mrs. Tetteh",
+      "phone": "+233 24 1000012",
+      "whatsapp": "+233 24 1000012",
       "email": "",
       "student_ids": [
-        "ST0013",
+        "ST0012",
+        "ST0013"
+      ],
+      "is_demo": true
+    },
+    {
+      "id": "pa-14",
+      "school_id": "sch-1",
+      "name": "Mrs. Amponsah",
+      "phone": "+233 24 1000014",
+      "whatsapp": "+233 24 1000014",
+      "email": "",
+      "student_ids": [
         "ST0014"
-      ]
+      ],
+      "is_demo": true
     },
     {
       "id": "pa-15",
       "school_id": "sch-1",
-      "name": "Mr. Owusu",
+      "name": "Mr. Acheampong",
       "phone": "+233 24 1000015",
       "whatsapp": "+233 24 1000015",
       "email": "",
       "student_ids": [
         "ST0015",
         "ST0016"
-      ]
+      ],
+      "is_demo": true
     },
     {
       "id": "pa-17",
       "school_id": "sch-1",
-      "name": "Mr. Asante",
+      "name": "Mr. Owusu",
       "phone": "+233 24 1000017",
       "whatsapp": "+233 24 1000017",
       "email": "",
       "student_ids": [
         "ST0017",
         "ST0018"
-      ]
+      ],
+      "is_demo": true
     },
     {
       "id": "pa-19",
       "school_id": "sch-1",
-      "name": "Mr. Appiah",
+      "name": "Mr. Asante",
       "phone": "+233 24 1000019",
       "whatsapp": "+233 24 1000019",
       "email": "",
       "student_ids": [
         "ST0019",
         "ST0020"
-      ]
+      ],
+      "is_demo": true
     },
     {
       "id": "pa-21",
       "school_id": "sch-1",
-      "name": "Mr. Agyei",
+      "name": "Mr. Appiah",
       "phone": "+233 24 1000021",
       "whatsapp": "+233 24 1000021",
       "email": "",
       "student_ids": [
-        "ST0021",
-        "ST0022"
-      ]
+        "ST0021"
+      ],
+      "is_demo": true
     },
     {
-      "id": "pa-23",
+      "id": "pa-22",
       "school_id": "sch-1",
-      "name": "Mr. Adjei",
-      "phone": "+233 24 1000023",
-      "whatsapp": "+233 24 1000023",
+      "name": "Mrs. Amoah",
+      "phone": "+233 24 1000022",
+      "whatsapp": "+233 24 1000022",
       "email": "",
       "student_ids": [
-        "ST0023",
-        "ST0024"
-      ]
+        "ST0022",
+        "ST0023"
+      ],
+      "is_demo": true
     },
     {
-      "id": "pa-25",
+      "id": "pa-24",
       "school_id": "sch-1",
-      "name": "Mr. Sarpong",
-      "phone": "+233 24 1000025",
-      "whatsapp": "+233 24 1000025",
+      "name": "Mrs. Darko",
+      "phone": "+233 24 1000024",
+      "whatsapp": "+233 24 1000024",
       "email": "",
       "student_ids": [
-        "ST0025",
-        "ST0026"
-      ]
+        "ST0024",
+        "ST0025"
+      ],
+      "is_demo": true
     },
     {
-      "id": "pa-27",
+      "id": "pa-26",
       "school_id": "sch-1",
-      "name": "Mr. Quaye",
-      "phone": "+233 24 1000027",
-      "whatsapp": "+233 24 1000027",
+      "name": "Mrs. Frimpong",
+      "phone": "+233 24 1000026",
+      "whatsapp": "+233 24 1000026",
       "email": "",
       "student_ids": [
-        "ST0027",
+        "ST0026",
+        "ST0027"
+      ],
+      "is_demo": true
+    },
+    {
+      "id": "pa-28",
+      "school_id": "sch-1",
+      "name": "Mrs. Tetteh",
+      "phone": "+233 24 1000028",
+      "whatsapp": "+233 24 1000028",
+      "email": "",
+      "student_ids": [
         "ST0028"
-      ]
+      ],
+      "is_demo": true
     },
     {
       "id": "pa-29",
       "school_id": "sch-1",
-      "name": "Mr. Owusu",
+      "name": "Mr. Quaye",
       "phone": "+233 24 1000029",
       "whatsapp": "+233 24 1000029",
       "email": "",
       "student_ids": [
         "ST0029",
         "ST0030"
-      ]
+      ],
+      "is_demo": true
     },
     {
       "id": "pa-31",
       "school_id": "sch-1",
-      "name": "Mr. Asante",
+      "name": "Mr. Acheampong",
       "phone": "+233 24 1000031",
       "whatsapp": "+233 24 1000031",
       "email": "",
       "student_ids": [
         "ST0031",
         "ST0032"
-      ]
+      ],
+      "is_demo": true
     },
     {
       "id": "pa-33",
       "school_id": "sch-1",
-      "name": "Mr. Appiah",
+      "name": "Mr. Owusu",
       "phone": "+233 24 1000033",
       "whatsapp": "+233 24 1000033",
       "email": "",
       "student_ids": [
         "ST0033",
         "ST0034"
-      ]
+      ],
+      "is_demo": true
     },
     {
       "id": "pa-35",
       "school_id": "sch-1",
-      "name": "Mr. Agyei",
+      "name": "Mr. Asante",
       "phone": "+233 24 1000035",
       "whatsapp": "+233 24 1000035",
       "email": "",
       "student_ids": [
-        "ST0035",
-        "ST0036"
-      ]
+        "ST0035"
+      ],
+      "is_demo": true
     },
     {
-      "id": "pa-37",
+      "id": "pa-36",
       "school_id": "sch-1",
-      "name": "Mr. Adjei",
-      "phone": "+233 24 1000037",
-      "whatsapp": "+233 24 1000037",
+      "name": "Mrs. Osei",
+      "phone": "+233 24 1000036",
+      "whatsapp": "+233 24 1000036",
       "email": "",
       "student_ids": [
-        "ST0037",
-        "ST0038"
-      ]
+        "ST0036",
+        "ST0037"
+      ],
+      "is_demo": true
     },
     {
-      "id": "pa-39",
+      "id": "pa-38",
       "school_id": "sch-1",
-      "name": "Mr. Sarpong",
-      "phone": "+233 24 1000039",
-      "whatsapp": "+233 24 1000039",
+      "name": "Mrs. Amoah",
+      "phone": "+233 24 1000038",
+      "whatsapp": "+233 24 1000038",
       "email": "",
       "student_ids": [
-        "ST0039",
-        "ST0040"
-      ]
+        "ST0038",
+        "ST0039"
+      ],
+      "is_demo": true
     },
     {
-      "id": "pa-41",
+      "id": "pa-40",
       "school_id": "sch-1",
-      "name": "Mr. Quaye",
-      "phone": "+233 24 1000041",
-      "whatsapp": "+233 24 1000041",
+      "name": "Mrs. Darko",
+      "phone": "+233 24 1000040",
+      "whatsapp": "+233 24 1000040",
       "email": "",
       "student_ids": [
-        "ST0041",
+        "ST0040",
+        "ST0041"
+      ],
+      "is_demo": true
+    },
+    {
+      "id": "pa-42",
+      "school_id": "sch-1",
+      "name": "Mrs. Frimpong",
+      "phone": "+233 24 1000042",
+      "whatsapp": "+233 24 1000042",
+      "email": "",
+      "student_ids": [
         "ST0042"
-      ]
+      ],
+      "is_demo": true
     },
     {
       "id": "pa-43",
       "school_id": "sch-1",
-      "name": "Mr. Owusu",
+      "name": "Mr. Sarpong",
       "phone": "+233 24 1000043",
       "whatsapp": "+233 24 1000043",
       "email": "",
       "student_ids": [
         "ST0043",
         "ST0044"
-      ]
+      ],
+      "is_demo": true
     },
     {
       "id": "pa-45",
       "school_id": "sch-1",
-      "name": "Mr. Asante",
+      "name": "Mr. Quaye",
       "phone": "+233 24 1000045",
       "whatsapp": "+233 24 1000045",
       "email": "",
       "student_ids": [
         "ST0045",
         "ST0046"
-      ]
+      ],
+      "is_demo": true
     },
     {
       "id": "pa-47",
       "school_id": "sch-1",
-      "name": "Mr. Appiah",
+      "name": "Mr. Acheampong",
       "phone": "+233 24 1000047",
       "whatsapp": "+233 24 1000047",
       "email": "",
       "student_ids": [
         "ST0047",
         "ST0048"
-      ]
+      ],
+      "is_demo": true
     },
     {
       "id": "pa-49",
       "school_id": "sch-1",
-      "name": "Mr. Agyei",
+      "name": "Mr. Owusu",
       "phone": "+233 24 1000049",
       "whatsapp": "+233 24 1000049",
       "email": "",
       "student_ids": [
-        "ST0049",
-        "ST0050"
-      ]
+        "ST0049"
+      ],
+      "is_demo": true
     },
     {
-      "id": "pa-51",
+      "id": "pa-50",
+      "school_id": "sch-1",
+      "name": "Mrs. Boateng",
+      "phone": "+233 24 1000050",
+      "whatsapp": "+233 24 1000050",
+      "email": "",
+      "student_ids": [
+        "ST0050",
+        "ST0051"
+      ],
+      "is_demo": true
+    },
+    {
+      "id": "pa-52",
+      "school_id": "sch-1",
+      "name": "Mrs. Osei",
+      "phone": "+233 24 1000052",
+      "whatsapp": "+233 24 1000052",
+      "email": "",
+      "student_ids": [
+        "ST0052",
+        "ST0053"
+      ],
+      "is_demo": true
+    },
+    {
+      "id": "pa-54",
+      "school_id": "sch-1",
+      "name": "Mrs. Amoah",
+      "phone": "+233 24 1000054",
+      "whatsapp": "+233 24 1000054",
+      "email": "",
+      "student_ids": [
+        "ST0054",
+        "ST0055"
+      ],
+      "is_demo": true
+    },
+    {
+      "id": "pa-56",
+      "school_id": "sch-1",
+      "name": "Mrs. Darko",
+      "phone": "+233 24 1000056",
+      "whatsapp": "+233 24 1000056",
+      "email": "",
+      "student_ids": [
+        "ST0056"
+      ],
+      "is_demo": true
+    },
+    {
+      "id": "pa-57",
       "school_id": "sch-1",
       "name": "Mr. Adjei",
-      "phone": "+233 24 1000051",
-      "whatsapp": "+233 24 1000051",
+      "phone": "+233 24 1000057",
+      "whatsapp": "+233 24 1000057",
       "email": "",
       "student_ids": [
-        "ST0051",
-        "ST0052"
-      ]
+        "ST0057",
+        "ST0058"
+      ],
+      "is_demo": true
     },
     {
-      "id": "pa-53",
+      "id": "pa-59",
       "school_id": "sch-1",
       "name": "Mr. Sarpong",
-      "phone": "+233 24 1000053",
-      "whatsapp": "+233 24 1000053",
+      "phone": "+233 24 1000059",
+      "whatsapp": "+233 24 1000059",
       "email": "",
       "student_ids": [
-        "ST0053",
-        "ST0054"
-      ]
+        "ST0059",
+        "ST0060"
+      ],
+      "is_demo": true
     },
     {
-      "id": "pa-55",
+      "id": "pa-61",
       "school_id": "sch-1",
       "name": "Mr. Quaye",
-      "phone": "+233 24 1000055",
-      "whatsapp": "+233 24 1000055",
+      "phone": "+233 24 1000061",
+      "whatsapp": "+233 24 1000061",
       "email": "",
       "student_ids": [
-        "ST0055",
-        "ST0056"
-      ]
+        "ST0061",
+        "ST0062"
+      ],
+      "is_demo": true
+    },
+    {
+      "id": "pa-63",
+      "school_id": "sch-1",
+      "name": "Mr. Acheampong",
+      "phone": "+233 24 1000063",
+      "whatsapp": "+233 24 1000063",
+      "email": "",
+      "student_ids": [
+        "ST0063"
+      ],
+      "is_demo": true
+    },
+    {
+      "id": "pa-64",
+      "school_id": "sch-1",
+      "name": "Mrs. Mensah",
+      "phone": "+233 24 1000064",
+      "whatsapp": "+233 24 1000064",
+      "email": "",
+      "student_ids": [
+        "ST0064",
+        "ST0065"
+      ],
+      "is_demo": true
+    },
+    {
+      "id": "pa-66",
+      "school_id": "sch-1",
+      "name": "Mrs. Boateng",
+      "phone": "+233 24 1000066",
+      "whatsapp": "+233 24 1000066",
+      "email": "",
+      "student_ids": [
+        "ST0066",
+        "ST0067"
+      ],
+      "is_demo": true
+    },
+    {
+      "id": "pa-68",
+      "school_id": "sch-1",
+      "name": "Mrs. Osei",
+      "phone": "+233 24 1000068",
+      "whatsapp": "+233 24 1000068",
+      "email": "",
+      "student_ids": [
+        "ST0068",
+        "ST0069"
+      ],
+      "is_demo": true
+    },
+    {
+      "id": "pa-70",
+      "school_id": "sch-1",
+      "name": "Mrs. Amoah",
+      "phone": "+233 24 1000070",
+      "whatsapp": "+233 24 1000070",
+      "email": "",
+      "student_ids": [
+        "ST0070"
+      ],
+      "is_demo": true
+    },
+    {
+      "id": "pa-71",
+      "school_id": "sch-1",
+      "name": "Mr. Agyei",
+      "phone": "+233 24 1000071",
+      "whatsapp": "+233 24 1000071",
+      "email": "",
+      "student_ids": [
+        "ST0071",
+        "ST0072"
+      ],
+      "is_demo": true
+    },
+    {
+      "id": "pa-73",
+      "school_id": "sch-1",
+      "name": "Mr. Adjei",
+      "phone": "+233 24 1000073",
+      "whatsapp": "+233 24 1000073",
+      "email": "",
+      "student_ids": [
+        "ST0073",
+        "ST0074"
+      ],
+      "is_demo": true
+    },
+    {
+      "id": "pa-75",
+      "school_id": "sch-1",
+      "name": "Mr. Sarpong",
+      "phone": "+233 24 1000075",
+      "whatsapp": "+233 24 1000075",
+      "email": "",
+      "student_ids": [
+        "ST0075",
+        "ST0076"
+      ],
+      "is_demo": true
+    },
+    {
+      "id": "pa-77",
+      "school_id": "sch-1",
+      "name": "Mr. Quaye",
+      "phone": "+233 24 1000077",
+      "whatsapp": "+233 24 1000077",
+      "email": "",
+      "student_ids": [
+        "ST0077"
+      ],
+      "is_demo": true
+    },
+    {
+      "id": "pa-78",
+      "school_id": "sch-1",
+      "name": "Mrs. Amponsah",
+      "phone": "+233 24 1000078",
+      "whatsapp": "+233 24 1000078",
+      "email": "",
+      "student_ids": [
+        "ST0078",
+        "ST0079"
+      ],
+      "is_demo": true
+    },
+    {
+      "id": "pa-80",
+      "school_id": "sch-1",
+      "name": "Mrs. Mensah",
+      "phone": "+233 24 1000080",
+      "whatsapp": "+233 24 1000080",
+      "email": "",
+      "student_ids": [
+        "ST0080",
+        "ST0081"
+      ],
+      "is_demo": true
+    },
+    {
+      "id": "pa-82",
+      "school_id": "sch-1",
+      "name": "Mrs. Boateng",
+      "phone": "+233 24 1000082",
+      "whatsapp": "+233 24 1000082",
+      "email": "",
+      "student_ids": [
+        "ST0082",
+        "ST0083"
+      ],
+      "is_demo": true
+    },
+    {
+      "id": "pa-84",
+      "school_id": "sch-1",
+      "name": "Mrs. Osei",
+      "phone": "+233 24 1000084",
+      "whatsapp": "+233 24 1000084",
+      "email": "",
+      "student_ids": [
+        "ST0084"
+      ],
+      "is_demo": true
+    },
+    {
+      "id": "pa-85",
+      "school_id": "sch-1",
+      "name": "Mr. Appiah",
+      "phone": "+233 24 1000085",
+      "whatsapp": "+233 24 1000085",
+      "email": "",
+      "student_ids": [
+        "ST0085",
+        "ST0086"
+      ],
+      "is_demo": true
+    },
+    {
+      "id": "pa-87",
+      "school_id": "sch-1",
+      "name": "Mr. Agyei",
+      "phone": "+233 24 1000087",
+      "whatsapp": "+233 24 1000087",
+      "email": "",
+      "student_ids": [
+        "ST0087",
+        "ST0088"
+      ],
+      "is_demo": true
+    },
+    {
+      "id": "pa-89",
+      "school_id": "sch-1",
+      "name": "Mr. Adjei",
+      "phone": "+233 24 1000089",
+      "whatsapp": "+233 24 1000089",
+      "email": "",
+      "student_ids": [
+        "ST0089",
+        "ST0090"
+      ],
+      "is_demo": true
+    },
+    {
+      "id": "pa-91",
+      "school_id": "sch-1",
+      "name": "Mr. Sarpong",
+      "phone": "+233 24 1000091",
+      "whatsapp": "+233 24 1000091",
+      "email": "",
+      "student_ids": [
+        "ST0091"
+      ],
+      "is_demo": true
+    },
+    {
+      "id": "pa-92",
+      "school_id": "sch-1",
+      "name": "Mrs. Tetteh",
+      "phone": "+233 24 1000092",
+      "whatsapp": "+233 24 1000092",
+      "email": "",
+      "student_ids": [
+        "ST0092",
+        "ST0093"
+      ],
+      "is_demo": true
+    },
+    {
+      "id": "pa-94",
+      "school_id": "sch-1",
+      "name": "Mrs. Amponsah",
+      "phone": "+233 24 1000094",
+      "whatsapp": "+233 24 1000094",
+      "email": "",
+      "student_ids": [
+        "ST0094",
+        "ST0095"
+      ],
+      "is_demo": true
+    },
+    {
+      "id": "pa-96",
+      "school_id": "sch-1",
+      "name": "Mrs. Mensah",
+      "phone": "+233 24 1000096",
+      "whatsapp": "+233 24 1000096",
+      "email": "",
+      "student_ids": [
+        "ST0096",
+        "ST0097"
+      ],
+      "is_demo": true
+    },
+    {
+      "id": "pa-98",
+      "school_id": "sch-1",
+      "name": "Mrs. Boateng",
+      "phone": "+233 24 1000098",
+      "whatsapp": "+233 24 1000098",
+      "email": "",
+      "student_ids": [
+        "ST0098"
+      ],
+      "is_demo": true
     }
   ],
   "students": [
@@ -2057,7 +2511,8 @@
       "dob": "",
       "parent_id": "pa-1",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0002",
@@ -2070,7 +2525,8 @@
       "dob": "",
       "parent_id": "pa-1",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0003",
@@ -2083,7 +2539,8 @@
       "dob": "",
       "parent_id": "pa-3",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0004",
@@ -2096,7 +2553,8 @@
       "dob": "",
       "parent_id": "pa-3",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0005",
@@ -2104,12 +2562,13 @@
       "student_id": "ST0005",
       "first_name": "Kwesi",
       "last_name": "Appiah",
-      "class_id": "cl-nur1",
+      "class_id": "cl-creche",
       "gender": "M",
       "dob": "",
       "parent_id": "pa-5",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0006",
@@ -2117,12 +2576,13 @@
       "student_id": "ST0006",
       "first_name": "Esi",
       "last_name": "Amoah",
-      "class_id": "cl-nur1",
+      "class_id": "cl-creche",
       "gender": "F",
       "dob": "",
       "parent_id": "pa-5",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0007",
@@ -2130,649 +2590,1287 @@
       "student_id": "ST0007",
       "first_name": "Prince",
       "last_name": "Agyei",
-      "class_id": "cl-nur1",
+      "class_id": "cl-creche",
       "gender": "M",
       "dob": "",
       "parent_id": "pa-7",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0008",
       "school_id": "sch-1",
       "student_id": "ST0008",
-      "first_name": "Akosua",
+      "first_name": "Grace",
       "last_name": "Darko",
       "class_id": "cl-nur1",
       "gender": "F",
       "dob": "",
-      "parent_id": "pa-7",
+      "parent_id": "pa-8",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0009",
       "school_id": "sch-1",
       "student_id": "ST0009",
-      "first_name": "Kofi",
+      "first_name": "Samuel",
       "last_name": "Adjei",
-      "class_id": "cl-nur2",
+      "class_id": "cl-nur1",
       "gender": "M",
       "dob": "",
-      "parent_id": "pa-9",
+      "parent_id": "pa-8",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0010",
       "school_id": "sch-1",
       "student_id": "ST0010",
-      "first_name": "Efua",
+      "first_name": "Hope",
       "last_name": "Frimpong",
-      "class_id": "cl-nur2",
+      "class_id": "cl-nur1",
       "gender": "F",
       "dob": "",
-      "parent_id": "pa-9",
+      "parent_id": "pa-10",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0011",
       "school_id": "sch-1",
       "student_id": "ST0011",
-      "first_name": "Kwabena",
+      "first_name": "Solomon",
       "last_name": "Sarpong",
-      "class_id": "cl-nur2",
+      "class_id": "cl-nur1",
       "gender": "M",
       "dob": "",
-      "parent_id": "pa-11",
+      "parent_id": "pa-10",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0012",
       "school_id": "sch-1",
       "student_id": "ST0012",
-      "first_name": "Adwoa",
+      "first_name": "Akosua",
       "last_name": "Tetteh",
-      "class_id": "cl-nur2",
+      "class_id": "cl-nur1",
       "gender": "F",
       "dob": "",
-      "parent_id": "pa-11",
+      "parent_id": "pa-12",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0013",
       "school_id": "sch-1",
       "student_id": "ST0013",
-      "first_name": "Kwesi",
+      "first_name": "Kofi",
       "last_name": "Quaye",
-      "class_id": "cl-kg1",
+      "class_id": "cl-nur1",
       "gender": "M",
       "dob": "",
-      "parent_id": "pa-13",
+      "parent_id": "pa-12",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0014",
       "school_id": "sch-1",
       "student_id": "ST0014",
-      "first_name": "Esi",
-      "last_name": "Mensah",
-      "class_id": "cl-kg1",
+      "first_name": "Efua",
+      "last_name": "Amponsah",
+      "class_id": "cl-nur1",
       "gender": "F",
       "dob": "",
-      "parent_id": "pa-13",
+      "parent_id": "pa-14",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0015",
       "school_id": "sch-1",
       "student_id": "ST0015",
-      "first_name": "Prince",
-      "last_name": "Owusu",
-      "class_id": "cl-kg1",
+      "first_name": "Kwabena",
+      "last_name": "Acheampong",
+      "class_id": "cl-nur2",
       "gender": "M",
       "dob": "",
       "parent_id": "pa-15",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0016",
       "school_id": "sch-1",
       "student_id": "ST0016",
-      "first_name": "Akosua",
-      "last_name": "Boateng",
-      "class_id": "cl-kg1",
+      "first_name": "Adwoa",
+      "last_name": "Mensah",
+      "class_id": "cl-nur2",
       "gender": "F",
       "dob": "",
       "parent_id": "pa-15",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0017",
       "school_id": "sch-1",
       "student_id": "ST0017",
-      "first_name": "Kofi",
-      "last_name": "Asante",
-      "class_id": "cl-kg2",
+      "first_name": "Kwesi",
+      "last_name": "Owusu",
+      "class_id": "cl-nur2",
       "gender": "M",
       "dob": "",
       "parent_id": "pa-17",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0018",
       "school_id": "sch-1",
       "student_id": "ST0018",
-      "first_name": "Efua",
-      "last_name": "Osei",
-      "class_id": "cl-kg2",
+      "first_name": "Esi",
+      "last_name": "Boateng",
+      "class_id": "cl-nur2",
       "gender": "F",
       "dob": "",
       "parent_id": "pa-17",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0019",
       "school_id": "sch-1",
       "student_id": "ST0019",
-      "first_name": "Kwabena",
-      "last_name": "Appiah",
-      "class_id": "cl-kg2",
+      "first_name": "Prince",
+      "last_name": "Asante",
+      "class_id": "cl-nur2",
       "gender": "M",
       "dob": "",
       "parent_id": "pa-19",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0020",
       "school_id": "sch-1",
       "student_id": "ST0020",
-      "first_name": "Adwoa",
-      "last_name": "Amoah",
-      "class_id": "cl-kg2",
+      "first_name": "Grace",
+      "last_name": "Osei",
+      "class_id": "cl-nur2",
       "gender": "F",
       "dob": "",
       "parent_id": "pa-19",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0021",
       "school_id": "sch-1",
       "student_id": "ST0021",
-      "first_name": "Kwesi",
-      "last_name": "Agyei",
-      "class_id": "cl-b1",
+      "first_name": "Samuel",
+      "last_name": "Appiah",
+      "class_id": "cl-nur2",
       "gender": "M",
       "dob": "",
       "parent_id": "pa-21",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0022",
       "school_id": "sch-1",
       "student_id": "ST0022",
-      "first_name": "Esi",
-      "last_name": "Darko",
-      "class_id": "cl-b1",
+      "first_name": "Hope",
+      "last_name": "Amoah",
+      "class_id": "cl-kg1",
       "gender": "F",
       "dob": "",
-      "parent_id": "pa-21",
+      "parent_id": "pa-22",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0023",
       "school_id": "sch-1",
       "student_id": "ST0023",
-      "first_name": "Prince",
-      "last_name": "Adjei",
-      "class_id": "cl-b1",
+      "first_name": "Solomon",
+      "last_name": "Agyei",
+      "class_id": "cl-kg1",
       "gender": "M",
       "dob": "",
-      "parent_id": "pa-23",
+      "parent_id": "pa-22",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0024",
       "school_id": "sch-1",
       "student_id": "ST0024",
       "first_name": "Akosua",
-      "last_name": "Frimpong",
-      "class_id": "cl-b1",
+      "last_name": "Darko",
+      "class_id": "cl-kg1",
       "gender": "F",
       "dob": "",
-      "parent_id": "pa-23",
+      "parent_id": "pa-24",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0025",
       "school_id": "sch-1",
       "student_id": "ST0025",
       "first_name": "Kofi",
-      "last_name": "Sarpong",
-      "class_id": "cl-b2",
+      "last_name": "Adjei",
+      "class_id": "cl-kg1",
       "gender": "M",
       "dob": "",
-      "parent_id": "pa-25",
+      "parent_id": "pa-24",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0026",
       "school_id": "sch-1",
       "student_id": "ST0026",
       "first_name": "Efua",
-      "last_name": "Tetteh",
-      "class_id": "cl-b2",
+      "last_name": "Frimpong",
+      "class_id": "cl-kg1",
       "gender": "F",
       "dob": "",
-      "parent_id": "pa-25",
+      "parent_id": "pa-26",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0027",
       "school_id": "sch-1",
       "student_id": "ST0027",
       "first_name": "Kwabena",
-      "last_name": "Quaye",
-      "class_id": "cl-b2",
+      "last_name": "Sarpong",
+      "class_id": "cl-kg1",
       "gender": "M",
       "dob": "",
-      "parent_id": "pa-27",
+      "parent_id": "pa-26",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0028",
       "school_id": "sch-1",
       "student_id": "ST0028",
       "first_name": "Adwoa",
-      "last_name": "Mensah",
-      "class_id": "cl-b2",
+      "last_name": "Tetteh",
+      "class_id": "cl-kg1",
       "gender": "F",
       "dob": "",
-      "parent_id": "pa-27",
+      "parent_id": "pa-28",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0029",
       "school_id": "sch-1",
       "student_id": "ST0029",
       "first_name": "Kwesi",
-      "last_name": "Owusu",
-      "class_id": "cl-b3",
+      "last_name": "Quaye",
+      "class_id": "cl-kg2",
       "gender": "M",
       "dob": "",
       "parent_id": "pa-29",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0030",
       "school_id": "sch-1",
       "student_id": "ST0030",
       "first_name": "Esi",
-      "last_name": "Boateng",
-      "class_id": "cl-b3",
+      "last_name": "Amponsah",
+      "class_id": "cl-kg2",
       "gender": "F",
       "dob": "",
       "parent_id": "pa-29",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0031",
       "school_id": "sch-1",
       "student_id": "ST0031",
       "first_name": "Prince",
-      "last_name": "Asante",
-      "class_id": "cl-b3",
+      "last_name": "Acheampong",
+      "class_id": "cl-kg2",
       "gender": "M",
       "dob": "",
       "parent_id": "pa-31",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0032",
       "school_id": "sch-1",
       "student_id": "ST0032",
-      "first_name": "Akosua",
-      "last_name": "Osei",
-      "class_id": "cl-b3",
+      "first_name": "Grace",
+      "last_name": "Mensah",
+      "class_id": "cl-kg2",
       "gender": "F",
       "dob": "",
       "parent_id": "pa-31",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0033",
       "school_id": "sch-1",
       "student_id": "ST0033",
-      "first_name": "Kofi",
-      "last_name": "Appiah",
-      "class_id": "cl-b4",
+      "first_name": "Samuel",
+      "last_name": "Owusu",
+      "class_id": "cl-kg2",
       "gender": "M",
       "dob": "",
       "parent_id": "pa-33",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0034",
       "school_id": "sch-1",
       "student_id": "ST0034",
-      "first_name": "Efua",
-      "last_name": "Amoah",
-      "class_id": "cl-b4",
+      "first_name": "Hope",
+      "last_name": "Boateng",
+      "class_id": "cl-kg2",
       "gender": "F",
       "dob": "",
       "parent_id": "pa-33",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0035",
       "school_id": "sch-1",
       "student_id": "ST0035",
-      "first_name": "Kwabena",
-      "last_name": "Agyei",
-      "class_id": "cl-b4",
+      "first_name": "Solomon",
+      "last_name": "Asante",
+      "class_id": "cl-kg2",
       "gender": "M",
       "dob": "",
       "parent_id": "pa-35",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0036",
       "school_id": "sch-1",
       "student_id": "ST0036",
-      "first_name": "Adwoa",
-      "last_name": "Darko",
-      "class_id": "cl-b4",
+      "first_name": "Akosua",
+      "last_name": "Osei",
+      "class_id": "cl-b1",
       "gender": "F",
       "dob": "",
-      "parent_id": "pa-35",
+      "parent_id": "pa-36",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0037",
       "school_id": "sch-1",
       "student_id": "ST0037",
-      "first_name": "Kwesi",
-      "last_name": "Adjei",
-      "class_id": "cl-b5",
+      "first_name": "Kofi",
+      "last_name": "Appiah",
+      "class_id": "cl-b1",
       "gender": "M",
       "dob": "",
-      "parent_id": "pa-37",
+      "parent_id": "pa-36",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0038",
       "school_id": "sch-1",
       "student_id": "ST0038",
-      "first_name": "Esi",
-      "last_name": "Frimpong",
-      "class_id": "cl-b5",
+      "first_name": "Efua",
+      "last_name": "Amoah",
+      "class_id": "cl-b1",
       "gender": "F",
       "dob": "",
-      "parent_id": "pa-37",
+      "parent_id": "pa-38",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0039",
       "school_id": "sch-1",
       "student_id": "ST0039",
-      "first_name": "Prince",
-      "last_name": "Sarpong",
-      "class_id": "cl-b5",
+      "first_name": "Kwabena",
+      "last_name": "Agyei",
+      "class_id": "cl-b1",
       "gender": "M",
       "dob": "",
-      "parent_id": "pa-39",
+      "parent_id": "pa-38",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0040",
       "school_id": "sch-1",
       "student_id": "ST0040",
-      "first_name": "Akosua",
-      "last_name": "Tetteh",
-      "class_id": "cl-b5",
+      "first_name": "Adwoa",
+      "last_name": "Darko",
+      "class_id": "cl-b1",
       "gender": "F",
       "dob": "",
-      "parent_id": "pa-39",
+      "parent_id": "pa-40",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0041",
       "school_id": "sch-1",
       "student_id": "ST0041",
-      "first_name": "Kofi",
-      "last_name": "Quaye",
-      "class_id": "cl-b6",
+      "first_name": "Kwesi",
+      "last_name": "Adjei",
+      "class_id": "cl-b1",
       "gender": "M",
       "dob": "",
-      "parent_id": "pa-41",
+      "parent_id": "pa-40",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0042",
       "school_id": "sch-1",
       "student_id": "ST0042",
-      "first_name": "Efua",
-      "last_name": "Mensah",
-      "class_id": "cl-b6",
+      "first_name": "Esi",
+      "last_name": "Frimpong",
+      "class_id": "cl-b1",
       "gender": "F",
       "dob": "",
-      "parent_id": "pa-41",
+      "parent_id": "pa-42",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0043",
       "school_id": "sch-1",
       "student_id": "ST0043",
-      "first_name": "Kwabena",
-      "last_name": "Owusu",
-      "class_id": "cl-b6",
+      "first_name": "Prince",
+      "last_name": "Sarpong",
+      "class_id": "cl-b2",
       "gender": "M",
       "dob": "",
       "parent_id": "pa-43",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0044",
       "school_id": "sch-1",
       "student_id": "ST0044",
-      "first_name": "Adwoa",
-      "last_name": "Boateng",
-      "class_id": "cl-b6",
+      "first_name": "Grace",
+      "last_name": "Tetteh",
+      "class_id": "cl-b2",
       "gender": "F",
       "dob": "",
       "parent_id": "pa-43",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0045",
       "school_id": "sch-1",
       "student_id": "ST0045",
-      "first_name": "Kwesi",
-      "last_name": "Asante",
-      "class_id": "cl-b7",
+      "first_name": "Samuel",
+      "last_name": "Quaye",
+      "class_id": "cl-b2",
       "gender": "M",
       "dob": "",
       "parent_id": "pa-45",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0046",
       "school_id": "sch-1",
       "student_id": "ST0046",
-      "first_name": "Esi",
-      "last_name": "Osei",
-      "class_id": "cl-b7",
+      "first_name": "Hope",
+      "last_name": "Amponsah",
+      "class_id": "cl-b2",
       "gender": "F",
       "dob": "",
       "parent_id": "pa-45",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0047",
       "school_id": "sch-1",
       "student_id": "ST0047",
-      "first_name": "Prince",
-      "last_name": "Appiah",
-      "class_id": "cl-b7",
+      "first_name": "Solomon",
+      "last_name": "Acheampong",
+      "class_id": "cl-b2",
       "gender": "M",
       "dob": "",
       "parent_id": "pa-47",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0048",
       "school_id": "sch-1",
       "student_id": "ST0048",
       "first_name": "Akosua",
-      "last_name": "Amoah",
-      "class_id": "cl-b7",
+      "last_name": "Mensah",
+      "class_id": "cl-b2",
       "gender": "F",
       "dob": "",
       "parent_id": "pa-47",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0049",
       "school_id": "sch-1",
       "student_id": "ST0049",
       "first_name": "Kofi",
-      "last_name": "Agyei",
-      "class_id": "cl-b8",
+      "last_name": "Owusu",
+      "class_id": "cl-b2",
       "gender": "M",
       "dob": "",
       "parent_id": "pa-49",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0050",
       "school_id": "sch-1",
       "student_id": "ST0050",
       "first_name": "Efua",
-      "last_name": "Darko",
-      "class_id": "cl-b8",
+      "last_name": "Boateng",
+      "class_id": "cl-b3",
       "gender": "F",
       "dob": "",
-      "parent_id": "pa-49",
+      "parent_id": "pa-50",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0051",
       "school_id": "sch-1",
       "student_id": "ST0051",
       "first_name": "Kwabena",
-      "last_name": "Adjei",
-      "class_id": "cl-b8",
+      "last_name": "Asante",
+      "class_id": "cl-b3",
       "gender": "M",
       "dob": "",
-      "parent_id": "pa-51",
+      "parent_id": "pa-50",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0052",
       "school_id": "sch-1",
       "student_id": "ST0052",
       "first_name": "Adwoa",
-      "last_name": "Frimpong",
-      "class_id": "cl-b8",
+      "last_name": "Osei",
+      "class_id": "cl-b3",
       "gender": "F",
       "dob": "",
-      "parent_id": "pa-51",
+      "parent_id": "pa-52",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0053",
       "school_id": "sch-1",
       "student_id": "ST0053",
       "first_name": "Kwesi",
-      "last_name": "Sarpong",
-      "class_id": "cl-b9",
+      "last_name": "Appiah",
+      "class_id": "cl-b3",
       "gender": "M",
       "dob": "",
-      "parent_id": "pa-53",
+      "parent_id": "pa-52",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0054",
       "school_id": "sch-1",
       "student_id": "ST0054",
       "first_name": "Esi",
-      "last_name": "Tetteh",
-      "class_id": "cl-b9",
+      "last_name": "Amoah",
+      "class_id": "cl-b3",
       "gender": "F",
       "dob": "",
-      "parent_id": "pa-53",
+      "parent_id": "pa-54",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0055",
       "school_id": "sch-1",
       "student_id": "ST0055",
       "first_name": "Prince",
-      "last_name": "Quaye",
-      "class_id": "cl-b9",
+      "last_name": "Agyei",
+      "class_id": "cl-b3",
       "gender": "M",
       "dob": "",
-      "parent_id": "pa-55",
+      "parent_id": "pa-54",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     },
     {
       "id": "stu-ST0056",
       "school_id": "sch-1",
       "student_id": "ST0056",
+      "first_name": "Grace",
+      "last_name": "Darko",
+      "class_id": "cl-b3",
+      "gender": "F",
+      "dob": "",
+      "parent_id": "pa-56",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0057",
+      "school_id": "sch-1",
+      "student_id": "ST0057",
+      "first_name": "Samuel",
+      "last_name": "Adjei",
+      "class_id": "cl-b4",
+      "gender": "M",
+      "dob": "",
+      "parent_id": "pa-57",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0058",
+      "school_id": "sch-1",
+      "student_id": "ST0058",
+      "first_name": "Hope",
+      "last_name": "Frimpong",
+      "class_id": "cl-b4",
+      "gender": "F",
+      "dob": "",
+      "parent_id": "pa-57",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0059",
+      "school_id": "sch-1",
+      "student_id": "ST0059",
+      "first_name": "Solomon",
+      "last_name": "Sarpong",
+      "class_id": "cl-b4",
+      "gender": "M",
+      "dob": "",
+      "parent_id": "pa-59",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0060",
+      "school_id": "sch-1",
+      "student_id": "ST0060",
+      "first_name": "Akosua",
+      "last_name": "Tetteh",
+      "class_id": "cl-b4",
+      "gender": "F",
+      "dob": "",
+      "parent_id": "pa-59",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0061",
+      "school_id": "sch-1",
+      "student_id": "ST0061",
+      "first_name": "Kofi",
+      "last_name": "Quaye",
+      "class_id": "cl-b4",
+      "gender": "M",
+      "dob": "",
+      "parent_id": "pa-61",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0062",
+      "school_id": "sch-1",
+      "student_id": "ST0062",
+      "first_name": "Efua",
+      "last_name": "Amponsah",
+      "class_id": "cl-b4",
+      "gender": "F",
+      "dob": "",
+      "parent_id": "pa-61",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0063",
+      "school_id": "sch-1",
+      "student_id": "ST0063",
+      "first_name": "Kwabena",
+      "last_name": "Acheampong",
+      "class_id": "cl-b4",
+      "gender": "M",
+      "dob": "",
+      "parent_id": "pa-63",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0064",
+      "school_id": "sch-1",
+      "student_id": "ST0064",
+      "first_name": "Adwoa",
+      "last_name": "Mensah",
+      "class_id": "cl-b5",
+      "gender": "F",
+      "dob": "",
+      "parent_id": "pa-64",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0065",
+      "school_id": "sch-1",
+      "student_id": "ST0065",
+      "first_name": "Kwesi",
+      "last_name": "Owusu",
+      "class_id": "cl-b5",
+      "gender": "M",
+      "dob": "",
+      "parent_id": "pa-64",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0066",
+      "school_id": "sch-1",
+      "student_id": "ST0066",
+      "first_name": "Esi",
+      "last_name": "Boateng",
+      "class_id": "cl-b5",
+      "gender": "F",
+      "dob": "",
+      "parent_id": "pa-66",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0067",
+      "school_id": "sch-1",
+      "student_id": "ST0067",
+      "first_name": "Prince",
+      "last_name": "Asante",
+      "class_id": "cl-b5",
+      "gender": "M",
+      "dob": "",
+      "parent_id": "pa-66",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0068",
+      "school_id": "sch-1",
+      "student_id": "ST0068",
+      "first_name": "Grace",
+      "last_name": "Osei",
+      "class_id": "cl-b5",
+      "gender": "F",
+      "dob": "",
+      "parent_id": "pa-68",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0069",
+      "school_id": "sch-1",
+      "student_id": "ST0069",
+      "first_name": "Samuel",
+      "last_name": "Appiah",
+      "class_id": "cl-b5",
+      "gender": "M",
+      "dob": "",
+      "parent_id": "pa-68",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0070",
+      "school_id": "sch-1",
+      "student_id": "ST0070",
+      "first_name": "Hope",
+      "last_name": "Amoah",
+      "class_id": "cl-b5",
+      "gender": "F",
+      "dob": "",
+      "parent_id": "pa-70",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0071",
+      "school_id": "sch-1",
+      "student_id": "ST0071",
+      "first_name": "Solomon",
+      "last_name": "Agyei",
+      "class_id": "cl-b6",
+      "gender": "M",
+      "dob": "",
+      "parent_id": "pa-71",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0072",
+      "school_id": "sch-1",
+      "student_id": "ST0072",
+      "first_name": "Akosua",
+      "last_name": "Darko",
+      "class_id": "cl-b6",
+      "gender": "F",
+      "dob": "",
+      "parent_id": "pa-71",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0073",
+      "school_id": "sch-1",
+      "student_id": "ST0073",
+      "first_name": "Kofi",
+      "last_name": "Adjei",
+      "class_id": "cl-b6",
+      "gender": "M",
+      "dob": "",
+      "parent_id": "pa-73",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0074",
+      "school_id": "sch-1",
+      "student_id": "ST0074",
+      "first_name": "Efua",
+      "last_name": "Frimpong",
+      "class_id": "cl-b6",
+      "gender": "F",
+      "dob": "",
+      "parent_id": "pa-73",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0075",
+      "school_id": "sch-1",
+      "student_id": "ST0075",
+      "first_name": "Kwabena",
+      "last_name": "Sarpong",
+      "class_id": "cl-b6",
+      "gender": "M",
+      "dob": "",
+      "parent_id": "pa-75",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0076",
+      "school_id": "sch-1",
+      "student_id": "ST0076",
+      "first_name": "Adwoa",
+      "last_name": "Tetteh",
+      "class_id": "cl-b6",
+      "gender": "F",
+      "dob": "",
+      "parent_id": "pa-75",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0077",
+      "school_id": "sch-1",
+      "student_id": "ST0077",
+      "first_name": "Kwesi",
+      "last_name": "Quaye",
+      "class_id": "cl-b6",
+      "gender": "M",
+      "dob": "",
+      "parent_id": "pa-77",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0078",
+      "school_id": "sch-1",
+      "student_id": "ST0078",
+      "first_name": "Esi",
+      "last_name": "Amponsah",
+      "class_id": "cl-b7",
+      "gender": "F",
+      "dob": "",
+      "parent_id": "pa-78",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0079",
+      "school_id": "sch-1",
+      "student_id": "ST0079",
+      "first_name": "Prince",
+      "last_name": "Acheampong",
+      "class_id": "cl-b7",
+      "gender": "M",
+      "dob": "",
+      "parent_id": "pa-78",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0080",
+      "school_id": "sch-1",
+      "student_id": "ST0080",
+      "first_name": "Grace",
+      "last_name": "Mensah",
+      "class_id": "cl-b7",
+      "gender": "F",
+      "dob": "",
+      "parent_id": "pa-80",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0081",
+      "school_id": "sch-1",
+      "student_id": "ST0081",
+      "first_name": "Samuel",
+      "last_name": "Owusu",
+      "class_id": "cl-b7",
+      "gender": "M",
+      "dob": "",
+      "parent_id": "pa-80",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0082",
+      "school_id": "sch-1",
+      "student_id": "ST0082",
+      "first_name": "Hope",
+      "last_name": "Boateng",
+      "class_id": "cl-b7",
+      "gender": "F",
+      "dob": "",
+      "parent_id": "pa-82",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0083",
+      "school_id": "sch-1",
+      "student_id": "ST0083",
+      "first_name": "Solomon",
+      "last_name": "Asante",
+      "class_id": "cl-b7",
+      "gender": "M",
+      "dob": "",
+      "parent_id": "pa-82",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0084",
+      "school_id": "sch-1",
+      "student_id": "ST0084",
+      "first_name": "Akosua",
+      "last_name": "Osei",
+      "class_id": "cl-b7",
+      "gender": "F",
+      "dob": "",
+      "parent_id": "pa-84",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0085",
+      "school_id": "sch-1",
+      "student_id": "ST0085",
+      "first_name": "Kofi",
+      "last_name": "Appiah",
+      "class_id": "cl-b8",
+      "gender": "M",
+      "dob": "",
+      "parent_id": "pa-85",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0086",
+      "school_id": "sch-1",
+      "student_id": "ST0086",
+      "first_name": "Efua",
+      "last_name": "Amoah",
+      "class_id": "cl-b8",
+      "gender": "F",
+      "dob": "",
+      "parent_id": "pa-85",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0087",
+      "school_id": "sch-1",
+      "student_id": "ST0087",
+      "first_name": "Kwabena",
+      "last_name": "Agyei",
+      "class_id": "cl-b8",
+      "gender": "M",
+      "dob": "",
+      "parent_id": "pa-87",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0088",
+      "school_id": "sch-1",
+      "student_id": "ST0088",
+      "first_name": "Adwoa",
+      "last_name": "Darko",
+      "class_id": "cl-b8",
+      "gender": "F",
+      "dob": "",
+      "parent_id": "pa-87",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0089",
+      "school_id": "sch-1",
+      "student_id": "ST0089",
+      "first_name": "Kwesi",
+      "last_name": "Adjei",
+      "class_id": "cl-b8",
+      "gender": "M",
+      "dob": "",
+      "parent_id": "pa-89",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0090",
+      "school_id": "sch-1",
+      "student_id": "ST0090",
+      "first_name": "Esi",
+      "last_name": "Frimpong",
+      "class_id": "cl-b8",
+      "gender": "F",
+      "dob": "",
+      "parent_id": "pa-89",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0091",
+      "school_id": "sch-1",
+      "student_id": "ST0091",
+      "first_name": "Prince",
+      "last_name": "Sarpong",
+      "class_id": "cl-b8",
+      "gender": "M",
+      "dob": "",
+      "parent_id": "pa-91",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0092",
+      "school_id": "sch-1",
+      "student_id": "ST0092",
+      "first_name": "Grace",
+      "last_name": "Tetteh",
+      "class_id": "cl-b9",
+      "gender": "F",
+      "dob": "",
+      "parent_id": "pa-92",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0093",
+      "school_id": "sch-1",
+      "student_id": "ST0093",
+      "first_name": "Samuel",
+      "last_name": "Quaye",
+      "class_id": "cl-b9",
+      "gender": "M",
+      "dob": "",
+      "parent_id": "pa-92",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0094",
+      "school_id": "sch-1",
+      "student_id": "ST0094",
+      "first_name": "Hope",
+      "last_name": "Amponsah",
+      "class_id": "cl-b9",
+      "gender": "F",
+      "dob": "",
+      "parent_id": "pa-94",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0095",
+      "school_id": "sch-1",
+      "student_id": "ST0095",
+      "first_name": "Solomon",
+      "last_name": "Acheampong",
+      "class_id": "cl-b9",
+      "gender": "M",
+      "dob": "",
+      "parent_id": "pa-94",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0096",
+      "school_id": "sch-1",
+      "student_id": "ST0096",
       "first_name": "Akosua",
       "last_name": "Mensah",
       "class_id": "cl-b9",
       "gender": "F",
       "dob": "",
-      "parent_id": "pa-55",
+      "parent_id": "pa-96",
       "status": "active",
-      "admitted_on": "2025-09-09"
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0097",
+      "school_id": "sch-1",
+      "student_id": "ST0097",
+      "first_name": "Kofi",
+      "last_name": "Owusu",
+      "class_id": "cl-b9",
+      "gender": "M",
+      "dob": "",
+      "parent_id": "pa-96",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
+    },
+    {
+      "id": "stu-ST0098",
+      "school_id": "sch-1",
+      "student_id": "ST0098",
+      "first_name": "Efua",
+      "last_name": "Boateng",
+      "class_id": "cl-b9",
+      "gender": "F",
+      "dob": "",
+      "parent_id": "pa-98",
+      "status": "active",
+      "admitted_on": "2025-09-09",
+      "is_demo": true
     }
   ],
   "scores": [],
@@ -2802,7 +3900,8 @@
         "contact": "",
         "location": ""
       },
-      "archived": false
+      "archived": false,
+      "is_demo": true
     },
     {
       "id": "itm-2",
@@ -2823,7 +3922,8 @@
         "contact": "",
         "location": ""
       },
-      "archived": false
+      "archived": false,
+      "is_demo": true
     },
     {
       "id": "itm-3",
@@ -2844,7 +3944,8 @@
         "contact": "",
         "location": ""
       },
-      "archived": false
+      "archived": false,
+      "is_demo": true
     }
   ],
   "stockMovements": [],
@@ -2859,7 +3960,8 @@
       "allocated": 5,
       "reorder_level": 10,
       "batch": {},
-      "archived": false
+      "archived": false,
+      "is_demo": true
     },
     {
       "id": "stk-2",
@@ -2871,7 +3973,8 @@
       "allocated": 0,
       "reorder_level": 15,
       "batch": {},
-      "archived": false
+      "archived": false,
+      "is_demo": true
     },
     {
       "id": "stk-3",
@@ -2883,7 +3986,8 @@
       "allocated": 0,
       "reorder_level": 2,
       "batch": {},
-      "archived": false
+      "archived": false,
+      "is_demo": true
     }
   ],
   "inventoryTransactions": [],
@@ -2896,32 +4000,9 @@
   "automationLog": [],
   "meta": {
     "seq": {
-      "student": 56,
-      "staff": 10,
+      "student": 98,
+      "staff": 14,
       "invtxn": 0
     }
-  },
-  "constants": {
-    "MODULES": [
-      "Dashboard",
-      "Students",
-      "Assessment",
-      "Finance",
-      "Attendance",
-      "Communication",
-      "Administration",
-      "Inventory",
-      "Accounting",
-      "Payroll",
-      "Settings"
-    ],
-    "ROLES": [
-      "Admin",
-      "Director",
-      "Teacher",
-      "Other staff",
-      "Parent"
-    ],
-    "SCHOOL_ID": "sch-1"
   }
 }

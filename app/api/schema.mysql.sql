@@ -23,13 +23,25 @@ SET FOREIGN_KEY_CHECKS = 0;
 -- trial_ends_at is the SERVER-side source of truth for a school's free trial
 -- (YYYY-MM-DD, or NULL for a fully paid school). It deliberately does NOT
 -- live in the school's own data, so a school cannot extend its own trial.
+-- paid_until: end of the period a school has paid for (NULL while on a free trial).
+-- email / phone / contact_name: captured at signup, shown only in the developer console.
+-- created_via: 'self-signup' or 'platform'.   notes: the developer's private notes.
+-- email and phone are UNIQUE (one school per email / phone; NULLs are ignored).
 CREATE TABLE IF NOT EXISTS schools (
   id            VARCHAR(40)  PRIMARY KEY,
   name          VARCHAR(160) NULL,
   status        VARCHAR(20)  NOT NULL DEFAULT 'active',
   plan          VARCHAR(40)  NULL,
   created_at    VARCHAR(30)  NULL,
-  trial_ends_at VARCHAR(30)  NULL
+  trial_ends_at VARCHAR(30)  NULL,
+  paid_until    VARCHAR(30)  NULL,
+  email         VARCHAR(160) NULL,
+  phone         VARCHAR(40)  NULL,
+  contact_name  VARCHAR(120) NULL,
+  created_via   VARCHAR(20)  NULL,
+  notes         VARCHAR(500) NULL,
+  UNIQUE KEY uq_schools_email (email),
+  UNIQUE KEY uq_schools_phone (phone)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS documents (
@@ -37,7 +49,9 @@ CREATE TABLE IF NOT EXISTS documents (
   collection VARCHAR(60)  NOT NULL,
   school_id  VARCHAR(40)  NOT NULL,
   data       LONGTEXT     NULL,
-  PRIMARY KEY (collection, id),
+  -- The key INCLUDES school_id so two schools can each own a record with the same id
+  -- (e.g. every school has a class "cl-b1"). It used to be (collection, id) only.
+  PRIMARY KEY (school_id, collection, id),
   KEY idx_docs_coll_school (collection, school_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -53,6 +67,12 @@ CREATE TABLE IF NOT EXISTS meta_seq (
   kind      VARCHAR(40) NOT NULL,
   val       INT NOT NULL DEFAULT 0,
   PRIMARY KEY (school_id, kind)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Schema version marker + sign-in/signup throttle (both created automatically by api/db.php too).
+CREATE TABLE IF NOT EXISTS app_meta (k VARCHAR(40) PRIMARY KEY, v VARCHAR(40) NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS rate_limits (
+  k VARCHAR(120) PRIMARY KEY, window_start INT NOT NULL, hits INT NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Append-only audit trail for EVERY platform (owner) action: provision,
@@ -155,7 +175,7 @@ CREATE TABLE IF NOT EXISTS payroll_runs (
   id VARCHAR(40) PRIMARY KEY, school_id VARCHAR(40) NOT NULL,
   month CHAR(7), status VARCHAR(16), created_on DATE, created_by VARCHAR(120),
   total_net DECIMAL(12,2), total_employer_cost DECIMAL(12,2),
-  settings_snapshot LONGTEXT, lines LONGTEXT
+  settings_snapshot LONGTEXT, `lines` LONGTEXT   -- `lines` is a reserved word in MySQL: it MUST stay in backticks
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS staff_classes (

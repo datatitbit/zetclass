@@ -1,0 +1,62 @@
+# ============================================================
+# Zetclass — web server rules (Apache / LiteSpeed on cPanel)
+# Lives in the website's main folder (the "document root").
+# ============================================================
+
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # 1. Always use the secure (https) address, and drop the "www."
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteCond %{HTTP_HOST} ^(www\.)?zetclass\.com$ [NC]
+  RewriteRule ^ https://zetclass.com%{REQUEST_URI} [L,R=301]
+  RewriteCond %{HTTP_HOST} ^www\.zetclass\.com$ [NC]
+  RewriteRule ^ https://zetclass.com%{REQUEST_URI} [L,R=301]
+
+  # 2. One-page app: an address that is not a real file or folder
+  #    (zetclass.com/st-marys-school, /signup, /admin ...) shows index.html,
+  #    and the app reads the address to decide what to display.
+  #    The API (/api/...) is left alone.
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteCond %{REQUEST_URI} !^/api/
+  RewriteRule ^ /index.html [L]
+</IfModule>
+
+# 3. Files that must never be downloadable by a visitor: database dumps,
+#    notes, logs, backups, the starter-data file, and the secret settings file.
+<FilesMatch "(\.(sql|md|log|bak|sqlite|sqlite-journal|ini|env|sh|docx|pdf)$|^config\.local(\.example)?\.php$|^seed\.json$)">
+  Require all denied
+</FilesMatch>
+
+# Smaller downloads = faster on mobile data.
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css text/plain application/javascript application/json application/manifest+json image/svg+xml
+</IfModule>
+
+<IfModule mod_headers.c>
+  # 4. Browser security headers.
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+  Header always set Strict-Transport-Security "max-age=31536000"
+  # The app's own scripts/styles/images only (plus data: images for school
+  # logos and blob: for downloads). Nothing is loaded from other websites.
+  Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+
+  # 5a. Scripts, styles and icons carry a ?v= release number in their address, so
+  #     browsers may keep them for 30 days; a new release changes the number.
+  <FilesMatch "\.(js|css|svg|png)$">
+    Header set Cache-Control "public, max-age=2592000"
+  </FilesMatch>
+
+  # 5b. The entry files must always be re-checked so a new upload shows up at once;
+  #    everything else carries a ?v= number that changes with each release.
+  <FilesMatch "^(index\.html|sw\.js|manifest\.webmanifest)$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+</IfModule>

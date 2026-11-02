@@ -1,16 +1,18 @@
-# Keep the owner/platform console and every school portal out of search
-# engines. This is NOT a security control — anyone can still type these
-# addresses, and robots.txt is itself public. It only stops the owner console
-# and customer portals being indexed and turning up in search results, which
-# is what makes an admin URL easy to find in the first place.
-#
-# The real controls live at the server, not here — see /DEPLOY.md:
-#   - serve /admin from its own hostname (admin.yourdomain.com)
-#   - restrict that hostname by IP allowlist / VPN / HTTP Basic Auth
-#   - two-factor authentication on the platform account
+# Search engines may index the home page and the signup page only.
+# The developer console, the API and every school's own address are kept out of results.
+# (This is NOT a security control - robots.txt is public. It only stops private-looking
+#  pages from showing up in search. The real protection is the sign-in on each page.)
 User-agent: *
-Disallow: /admin
-Disallow: /school/
-
-# The marketing/landing root stays indexable.
 Allow: /$
+Allow: /signup$
+Disallow: /admin
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /api/
+Allow: /js/
+Allow: /css/
+Allow: /icon.svg
+Allow: /manifest.webmanifest
+Disallow: /
+
+Sitemap: https://zetclass.com/sitemap.xml

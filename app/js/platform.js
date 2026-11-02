@@ -1,5 +1,5 @@
 /* ============================================================
- * platform.js — Zetranova owner / platform console (the "/admin" area).
+ * platform.js — Zetranova owner / developer console (the "/admin" area).
  *
  * This is the OWNER plane, not a school's plane. It is deliberately kept in
  * its own file and rendered outside the normal app shell (renderShell/router
@@ -11,6 +11,12 @@
  * caller's platform claim on every one of those routes — nothing on this
  * screen is a security boundary, it is only the operator's control surface.
  * Every action taken here is written to the server's platform_audit log.
+ *
+ * Layout: a short overview (counts), a searchable list of schools, and ONE
+ * "Manage" screen per school that holds everything you can do to it:
+ *   Subscription (extend trial, record payment, plan) · Contact & notes ·
+ *   Login accounts (enable/disable, reset password) · Support tools
+ *   (log in as the school, suspend, reset data).
  * ============================================================ */
 (function (global) {
   'use strict';
@@ -22,28 +28,51 @@
 
   var PLANS = ['basic', 'growth', 'premium'];
   var PLAN_LABEL = { basic: 'Basic', growth: 'Growth', premium: 'Premium' };
-  var STATE_LABEL = { active: 'Active (paid)', trialing: 'Free trial', expired: 'Trial expired', suspended: 'Suspended' };
-  var STATE_COLOR = { active: '#0f5e5e', trialing: '#c99a2e', expired: '#b91c1c', suspended: '#b91c1c' };
+  var STATE_LABEL = { active: 'Active (paid)', trialing: 'Free trial', expired: 'Ended', suspended: 'Suspended' };
+  var STATE_COLOR = { active: '#0f5e5e', trialing: '#8a6410', expired: '#b91c1c', suspended: '#b91c1c' };
+  // Numbers typed without a "+" (e.g. 024 123 4567) are treated as Ghana numbers
+  // when building WhatsApp links, because that is where schools are.
+  var DEFAULT_COUNTRY_CODE = '233';
+  // One school term, for the payment shortcuts. Ghana terms run about 3 months;
+  // 120 days leaves a little margin so a school is not locked out on the last day.
+  var TERM_DAYS = 120;
 
-  function field(label, input) { return el('div', { class: 'field' }, [el('label', { text: label }), input]); }
-  function errBox() { return el('div', { style: 'color:#b3261e;font-size:.85rem;display:none' }); }
+  var schools = [];                 // last list from the server
+  var view = { q: '', filter: 'all' };
+
+  function field(label, input, help) {
+    var kids = [el('label', { text: label }), input];
+    if (help) kids.push(el('div', { class: 'help', text: help }));
+    return el('div', { class: 'field' }, kids);
+  }
+  function errBox() { return el('div', { style: 'color:#b3261e;font-size:.85rem;display:none;margin:.3rem 0' }); }
   function showErr(box, msg) { box.textContent = msg; box.style.display = 'block'; }
-  function today() { var d = new Date(); return d.toISOString().slice(0, 10); }
-  function plusDays(n) { return new Date(Date.now() + n * 86400000).toISOString().slice(0, 10); }
+  function today() { return new Date().toISOString().slice(0, 10); }
+  function addDays(ymd, n) { return new Date(Date.parse(ymd + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10); }
+  function fmt(ymd) { return ymd ? U.fmtDate(ymd) : '—'; }
+  function msgOf(err, fallback) { return (err && err.message) || fallback; }
 
   // School name -> URL slug: lowercase, hyphens between words, letters/numbers
   // only, truncated at a whole word (never mid-word) so long names still read
   // cleanly. Mirrors slugify_school_name() in api/index.php, which is the real
   // safety backstop (reserved-word + format check) if this suggestion is
-  // edited or bypassed. Kept short (40 chars) — the school's actual name is
-  // shown everywhere in the app; the slug only has to be short and readable.
+  // edited or bypassed.
   function slugify(name, maxLen) {
     maxLen = maxLen || 40;
     var s = String(name || '').toLowerCase().replace(/['’]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-    if (s.length > maxLen) {
-      s = s.slice(0, maxLen).replace(/-[^-]*$/, '').replace(/-+$/, '');
-    }
+    if (s.length > maxLen) { s = s.slice(0, maxLen).replace(/-[^-]*$/, '').replace(/-+$/, ''); }
     return s;
+  }
+
+  // wa.me wants digits only, with the country code and no leading 0 or "+".
+  function waLink(phone, text) {
+    var raw = String(phone || '').trim();
+    var digits = raw.replace(/\D+/g, '');
+    if (!digits) return null;
+    if (raw.charAt(0) !== '+') {
+      if (digits.charAt(0) === '0') digits = DEFAULT_COUNTRY_CODE + digits.slice(1);
+    }
+    return 'https://wa.me/' + digits + (text ? '?text=' + encodeURIComponent(text) : '');
   }
 
   function stateChip(row) {
@@ -51,22 +80,24 @@
     return el('span', { class: 'tag', style: 'background:' + (STATE_COLOR[row.state] || '#666') + ';color:#fff', text: label });
   }
 
-  // Human-readable trial line. A past end date is reported as "expired on ..."
-  // rather than a negative countdown ("-33d left"), which reads as a bug.
-  function trialSummary(row, longForm) {
-    if (!row.trial_ends_at) {
-      return longForm ? 'No free trial running (treated as a paid school).' : 'no trial running';
-    }
+  // One human-readable line about where a school stands. A past end date is
+  // reported as "ended on ..." rather than a negative countdown ("-33d left"),
+  // which reads as a bug.
+  function subLine(row, longForm) {
+    if (row.state === 'suspended') return longForm ? 'Suspended by you — nobody at this school can sign in.' : 'suspended';
     var d = row.days_left;
-    if (d === null || d === undefined) {
-      return (longForm ? 'Free trial ends ' : 'ends ') + row.trial_ends_at;
+    if (row.paid_until) {
+      if (d !== null && d !== undefined && d < 0) return (longForm ? 'Paid period ended on ' : 'ended ') + row.paid_until;
+      return (longForm ? 'Paid until ' : 'paid until ') + row.paid_until + (d !== null && d !== undefined ? ' — ' + d + ' day' + (d === 1 ? '' : 's') + ' left' : '');
     }
-    if (d < 0) {
-      return (longForm ? 'Free trial expired on ' : 'expired ') + row.trial_ends_at;
+    if (row.trial_ends_at) {
+      if (d === null || d === undefined) return (longForm ? 'Free trial ends ' : 'ends ') + row.trial_ends_at;
+      if (d < 0) return (longForm ? 'Free trial ended on ' : 'ended ') + row.trial_ends_at;
+      return longForm
+        ? ('Free trial ends ' + row.trial_ends_at + ' — ' + d + ' day' + (d === 1 ? '' : 's') + ' left')
+        : ('ends ' + row.trial_ends_at + ' · ' + d + 'd left');
     }
-    return longForm
-      ? ('Free trial ends ' + row.trial_ends_at + ' — ' + d + ' day' + (d === 1 ? '' : 's') + ' left')
-      : ('ends ' + row.trial_ends_at + ' · ' + d + 'd left');
+    return longForm ? 'No end date set (treated as fully active).' : 'no end date';
   }
 
   /* ---------------- Shell ---------------- */
@@ -75,22 +106,24 @@
     HOOKS = hooks || {};
     var root = U.clear(U.$('#root'));
 
-    var topbar = el('div', { class: 'topbar' }, [
+    root.appendChild(el('div', { class: 'topbar' }, [
       el('div', { class: 'school-name' }, [document.createTextNode('Zetranova Platform')]),
       el('div', { class: 'spacer' }),
       el('button', { class: 'role-pill', text: ((HOOKS.user && HOOKS.user.name) || 'Platform') + ' ▾', onclick: accountMenu })
-    ]);
-    root.appendChild(topbar);
+    ]));
 
     var wrap = el('div', { style: 'padding:1.2rem;max-width:1150px;margin:0 auto' });
-    var card = el('div', { class: 'card' });
     var head = el('div', { style: 'display:flex;justify-content:space-between;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.8rem' });
     head.appendChild(el('h1', { text: 'Schools', style: 'margin:0' }));
     head.appendChild(el('div', { class: 'btn-row' }, [
       el('button', { class: 'btn ghost', text: 'Activity log', onclick: function () { openAuditModal(null); } }),
       el('button', { class: 'btn gold', text: '+ Add school', onclick: openProvisionModal })
     ]));
-    card.appendChild(head);
+    wrap.appendChild(head);
+    wrap.appendChild(el('div', { id: 'plat-requests' }));
+    wrap.appendChild(el('div', { id: 'plat-tiles' }));
+    var card = el('div', { class: 'card' });
+    card.appendChild(el('div', { id: 'plat-toolbar' }));
     card.appendChild(el('div', { id: 'plat-schools' }, [el('div', { class: 'loader', text: 'Loading…' })]));
     wrap.appendChild(card);
     root.appendChild(wrap);
@@ -104,273 +137,517 @@
     var m = U.modal({ title: 'Platform account', body: body, actions: [{ label: 'Close', onClick: function (c) { c(); } }] });
   }
 
-  /* ---------------- Schools table ---------------- */
+  /* ---------------- Overview + list ---------------- */
+
+  function isNew(s) { return s.created_at && (Date.now() - Date.parse(s.created_at)) < 7 * 86400000; }
+  function endingSoon(s) {
+    var running = s.state === 'trialing' || (s.state === 'active' && s.paid_until);
+    return running && s.days_left !== null && s.days_left !== undefined && s.days_left >= 0 && s.days_left <= 7;
+  }
+  var FILTERS = [
+    ['all', 'All schools', function () { return true; }],
+    ['trial', 'Free trial', function (s) { return s.state === 'trialing'; }],
+    ['paid', 'Paid', function (s) { return s.state === 'active'; }],
+    ['ending', 'Ending within 7 days', endingSoon],
+    ['ended', 'Ended', function (s) { return s.state === 'expired'; }],
+    ['suspended', 'Suspended', function (s) { return s.state === 'suspended'; }],
+    ['new', 'New this week', isNew]
+  ];
+  function filterFn(key) { return (FILTERS.filter(function (f) { return f[0] === key; })[0] || FILTERS[0])[2]; }
 
   function loadSchools() {
     var host = U.$('#plat-schools');
-    if (!host) return;
-    U.clear(host).appendChild(el('div', { class: 'loader', text: 'Loading…' }));
-    DB.platformSchoolsList().then(function (schools) {
-      var h = U.$('#plat-schools');
-      if (!h) return; // operator navigated away mid-request
-      U.clear(h);
-      if (!schools || !schools.length) {
-        h.appendChild(el('p', { class: 'muted', text: 'No schools yet. Use “+ Add school” to create the first one.' }));
-        return;
-      }
-      var table = el('table', { class: 'data' });
-      table.appendChild(el('thead', {}, [el('tr', {},
-        ['School', 'School ID', 'Subscription', 'Plan', 'Users', 'Created', 'Actions']
-          .map(function (t) { return el('th', { text: t }); })
-      )]));
-      var tb = el('tbody');
-      schools.forEach(function (s) { tb.appendChild(schoolRow(s)); });
-      table.appendChild(tb);
-      h.appendChild(el('div', { class: 'table-wrap' }, [table]));
+    if (!host) return Promise.resolve();
+    return DB.platformSchoolsList().then(function (rows) {
+      schools = rows || [];
+      paintTiles(); paintToolbar(); paintTable(); loadRequests();
     }).catch(function (err) {
       var h = U.$('#plat-schools');
-      if (h) U.clear(h).appendChild(el('p', { style: 'color:#b3261e', text: 'Could not load schools: ' + ((err && err.message) || 'error') }));
+      if (h) U.clear(h).appendChild(el('p', { style: 'color:#b3261e', text: 'Could not load schools: ' + msgOf(err, 'error') }));
     });
   }
 
-  function schoolRow(s) {
-    var live = s.status === 'active' || s.status === 'trial' || s.status === 'grace';
+  // Administrators who pressed "Forgot password". The emailed link is the normal route;
+  // this list is the safety net - a school whose email never arrives (or has none on
+  // file) can still be helped after you verify them by phone or WhatsApp.
+  function loadRequests() {
+    var host = U.$('#plat-requests'); if (!host) return;
+    DB.platformRequests().then(function (rows) {
+      var h = U.$('#plat-requests'); if (!h) return;
+      U.clear(h);
+      if (!rows || !rows.length) return;
+      var card = el('div', { class: 'card', style: 'margin-bottom:1rem;border-left:4px solid #8a6410' }, [
+        el('h3', { text: 'Password help requests (' + rows.length + ')' }),
+        el('div', { class: 'help', text: 'These administrators pressed “Forgot password”. If their email does not arrive, confirm it really is the school (call or WhatsApp the number on file), then issue a temporary password.' })
+      ]);
+      rows.forEach(function (r) {
+        var emailNote = r.email_sent ? 'email sent' : (r.email ? 'email NOT delivered' : 'no email on file');
+        var wa = r.phone ? waLink(r.phone, 'Hello' + (r.contact_name ? ' ' + r.contact_name : '') + ', this is Zetranova. We received a request to reset the Zetclass password for ' + (r.school_name || 'your school') + '. Was this you?') : null;
+        var actions = el('div', { class: 'btn-row' }, [
+          el('button', { class: 'btn sm gold', text: 'Issue temporary password', onclick: function () {
+            if (!global.confirm('Issue a temporary password for ' + (r.school_name || r.school_id) + ' (' + r.username + ')?\n\nOnly do this once you are sure the request is genuine - for example by calling the number on file.')) return;
+            DB.platformResetPassword(r.school_id, r.user_id).then(function (res) {
+              showCredentials('Temporary password', { name: r.school_name, phone: r.phone }, Object.assign({ school_id: r.school_id }, res));
+              loadRequests();
+            }).catch(function (err) { U.toast(msgOf(err, 'Could not reset the password.'), 'err'); });
+          } }),
+          wa ? el('a', { class: 'btn sm ghost', href: wa, target: '_blank', rel: 'noopener', text: 'WhatsApp them' }) : null,
+          el('button', { class: 'btn sm ghost', text: 'Dismiss', onclick: function () {
+            DB.platformDismissRequest(r.id).then(function () { loadRequests(); }).catch(function (err) { U.toast(msgOf(err, 'Could not dismiss.'), 'err'); });
+          } })
+        ]);
+        card.appendChild(el('div', { style: 'display:flex;justify-content:space-between;align-items:center;gap:.6rem;flex-wrap:wrap;padding:.55rem 0;border-top:1px solid var(--line)' }, [
+          el('div', {}, [
+            el('div', { style: 'font-weight:700', text: (r.school_name || r.school_id) + ' — ' + r.username }),
+            el('div', { class: 'muted', style: 'font-size:.78rem', text: 'asked ' + (r.requested_at || '').slice(0, 16).replace('T', ' ') + ' UTC · ' + emailNote + (r.phone ? ' · ' + r.phone : '') })
+          ]),
+          actions
+        ]));
+      });
+      h.appendChild(card);
+    }).catch(function () { /* older server without this route: stay quiet */ });
+  }
 
-    var subCell = el('td', {}, [
-      stateChip(s),
-      el('div', { class: 'muted', style: 'font-size:.72rem;margin-top:.2rem', text: trialSummary(s, false) })
+  // Counts at a glance; click one to filter the list to it.
+  function paintTiles() {
+    var host = U.$('#plat-tiles'); if (!host) return;
+    U.clear(host);
+    // auto-fit keeps all six counts on one row when there is room, and wraps tidily on a phone.
+    var grid = el('div', { class: 'grid', style: 'margin-bottom:1rem;grid-template-columns:repeat(auto-fit,minmax(130px,1fr))' });
+    [['all', 'Schools'], ['trial', 'On free trial'], ['paid', 'Paid'], ['ending', 'Ending ≤ 7 days'], ['ended', 'Ended'], ['suspended', 'Suspended']].forEach(function (t) {
+      var n = schools.filter(filterFn(t[0])).length;
+      var tile = el('div', { class: 'stat kpi-link' + (view.filter === t[0] ? ' accent' : ''), role: 'button', tabindex: '0' }, [
+        el('div', { class: 'n', text: String(n) }), el('div', { class: 'l', text: t[1] })]);
+      function pick() { view.filter = t[0]; paintTiles(); paintToolbar(); paintTable(); }
+      tile.addEventListener('click', pick);
+      tile.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
+      grid.appendChild(tile);
+    });
+    host.appendChild(grid);
+  }
+
+  function paintToolbar() {
+    var host = U.$('#plat-toolbar'); if (!host) return;
+    U.clear(host);
+    var search = el('input', { type: 'search', class: 'search', placeholder: 'Search name, email, phone or address…', value: view.q, 'aria-label': 'Search schools' });
+    search.addEventListener('input', function () { view.q = search.value; paintTable(); });
+    var sel = el('select', { 'aria-label': 'Show' });
+    FILTERS.forEach(function (f) { var o = el('option', { value: f[0], text: f[1] }); if (f[0] === view.filter) o.selected = true; sel.appendChild(o); });
+    sel.addEventListener('change', function () { view.filter = sel.value; paintTiles(); paintTable(); });
+    host.appendChild(el('div', { class: 'toolbar' }, [search, sel]));
+  }
+
+  function matches(s, q) {
+    if (!q) return true;
+    q = q.toLowerCase();
+    return [s.name, s.id, s.email, s.phone, s.contact_name].some(function (v) { return v && String(v).toLowerCase().indexOf(q) !== -1; });
+  }
+
+  function paintTable() {
+    var h = U.$('#plat-schools'); if (!h) return;
+    U.clear(h);
+    if (!schools.length) {
+      h.appendChild(el('p', { class: 'muted', text: 'No schools yet. Schools appear here as soon as they sign up at zetclass.com/signup, or you can add one with “+ Add school”.' }));
+      return;
+    }
+    var fn = filterFn(view.filter);
+    var rows = schools.filter(function (s) { return fn(s) && matches(s, view.q); });
+    if (!rows.length) { h.appendChild(el('p', { class: 'muted', text: 'No schools match.' })); return; }
+
+    var table = el('table', { class: 'data' });
+    table.appendChild(el('thead', {}, [el('tr', {}, ['School', 'Contact', 'Subscription', 'Plan', ''].map(function (t) { return el('th', { text: t }); }))]));
+    var tb = el('tbody');
+    rows.forEach(function (s) { tb.appendChild(schoolRow(s)); });
+    table.appendChild(tb);
+    h.appendChild(el('div', { class: 'table-wrap' }, [table]));
+    h.appendChild(el('div', { class: 'help', text: rows.length + ' of ' + schools.length + ' school' + (schools.length === 1 ? '' : 's') }));
+  }
+
+  function schoolRow(s) {
+    var nameCell = el('td', {}, [
+      el('div', { style: 'font-weight:700', text: s.name || '—' }),
+      el('div', { class: 'muted', style: 'font-size:.75rem' }, [document.createTextNode('/' + s.id + ' · joined ' + fmt((s.created_at || '').slice(0, 10)) + (s.created_via === 'self-signup' ? ' · signed up' : '') + ' ')].concat(isNew(s) ? [el('span', { class: 'tag req', text: 'New' })] : []))
     ]);
 
-    var actions = el('td', { class: 'actions', style: 'display:flex;gap:.35rem;flex-wrap:wrap' });
-    // Plan and trial are one concept to the operator, so they live behind a
-    // single "Subscription" control rather than separate scattered buttons.
-    actions.appendChild(el('button', { class: 'btn sm gold', text: 'Subscription', onclick: function () { openSubscriptionModal(s); } }));
-    actions.appendChild(el('button', { class: 'btn sm', text: 'Users', onclick: function () { openUsersModal(s); } }));
-    actions.appendChild(el('button', { class: 'btn sm', text: live ? 'Suspend' : 'Activate', onclick: function () {
-      var next = live ? 'suspended' : 'active';
-      if (live && !global.confirm('Suspend ' + (s.name || s.id) + '? Their staff and parents will not be able to log in until you reactivate. No data is deleted.')) return;
-      DB.platformSuspend(s.id, next)
-        .then(function () { U.toast(live ? 'School suspended.' : 'School reactivated.'); loadSchools(); })
-        .catch(function (err) { U.toast((err && err.message) || 'Could not update status.', 'err'); });
-    } }));
-    actions.appendChild(el('button', { class: 'btn sm', text: 'Impersonate', onclick: function () {
-      DB.platformImpersonate(s.id)
-        .then(function (res) { if (HOOKS.onImpersonate) HOOKS.onImpersonate(res); })
-        .catch(function (err) { U.toast((err && err.message) || 'Could not impersonate.', 'err'); });
-    } }));
-    actions.appendChild(el('button', { class: 'btn sm', text: 'Reset', onclick: function () {
-      if (!global.confirm('Reset ' + (s.name || s.id) + ' back to default starting data?\n\nEVERY student, staff member, payment and record for this school will be permanently deleted. This cannot be undone.')) return;
-      DB.platformReset(s.id)
-        .then(function () { U.toast('School reset to default data.'); loadSchools(); })
-        .catch(function (err) { U.toast((err && err.message) || 'Could not reset school.', 'err'); });
-    } }));
+    var contact = el('td', { style: 'font-size:.82rem' });
+    if (s.contact_name) contact.appendChild(el('div', { text: s.contact_name }));
+    if (s.email) contact.appendChild(el('div', {}, [el('a', { href: 'mailto:' + s.email, text: s.email })]));
+    if (s.phone) {
+      var wa = waLink(s.phone);
+      contact.appendChild(el('div', {}, [el('a', { href: 'tel:' + s.phone, text: s.phone }), wa ? document.createTextNode(' · ') : null, wa ? el('a', { href: wa, target: '_blank', rel: 'noopener', text: 'WhatsApp' }) : null]));
+    }
+    if (!s.contact_name && !s.email && !s.phone) contact.appendChild(el('span', { class: 'muted', text: '—' }));
+
+    var subCell = el('td', {}, [stateChip(s), el('div', { class: 'muted', style: 'font-size:.72rem;margin-top:.2rem', text: subLine(s, false) })]);
 
     return el('tr', {}, [
-      el('td', { text: s.name || '—' }),
-      el('td', {}, [el('code', { style: 'font-size:.75rem', text: s.id })]),
-      subCell,
+      nameCell, contact, subCell,
       el('td', { text: PLAN_LABEL[s.plan] || s.plan || '—' }),
-      el('td', { text: String(s.user_count || 0) }),
-      el('td', { text: (s.created_at || '').slice(0, 10) }),
-      actions
+      el('td', { class: 'actions' }, [el('button', { class: 'btn sm gold', text: 'Manage', onclick: function () { openManageModal(s.id); } })])
     ]);
+  }
+
+  /* ---------------- Credentials hand-over (shown ONCE) ---------------- */
+
+  function copyToClipboard(text, btn, label) {
+    var done = function () { btn.textContent = 'Copied ✓'; setTimeout(function () { btn.textContent = label; }, 2000); };
+    if (global.navigator.clipboard && global.navigator.clipboard.writeText) global.navigator.clipboard.writeText(text).then(done, function () { U.toast('Could not copy — select and copy it by hand.', 'warn'); });
+    else U.toast('Could not copy — select and copy it by hand.', 'warn');
+  }
+
+  // Shows a one-time temporary password. It is never stored in readable form
+  // and never written to the activity log, so this is the only time it exists.
+  function showCredentials(title, schoolRow, res) {
+    var address = global.location.origin + '/' + res.school_id;
+    var body = el('div');
+    body.appendChild(el('p', { class: 'note', text: 'Give these to the school now. The temporary password is shown only once — after you close this, it cannot be looked up again (you can always issue a new one). The school must change it when they first sign in.' }));
+    function row(l, v, mono) {
+      return el('div', { style: 'margin:.45rem 0' }, [el('div', { class: 'muted', style: 'font-size:.75rem', text: l }), el('div', { style: 'font-weight:700;word-break:break-all;' + (mono ? 'font-family:monospace;font-size:1.15rem;letter-spacing:.04em' : ''), text: v })]);
+    }
+    body.appendChild(row('Web address', address));
+    body.appendChild(row('Username', res.username || 'admin'));
+    body.appendChild(row('Temporary password', res.temp_password, true));
+    var text = 'Zetclass sign-in details' + (schoolRow && schoolRow.name ? ' for ' + schoolRow.name : '') + '\nWeb address: ' + address + '\nUsername: ' + (res.username || 'admin') + '\nTemporary password: ' + res.temp_password + '\n(You will be asked to choose your own password when you sign in.)';
+    var actions = el('div', { class: 'btn-row', style: 'margin-top:.8rem' });
+    var copyBtn = el('button', { class: 'btn', type: 'button', text: 'Copy details', onclick: function () { copyToClipboard(text, copyBtn, 'Copy details'); } });
+    actions.appendChild(copyBtn);
+    var wa = schoolRow && schoolRow.phone ? waLink(schoolRow.phone, text) : null;
+    if (wa) actions.appendChild(el('a', { class: 'btn ghost', href: wa, target: '_blank', rel: 'noopener', text: 'Send on WhatsApp' }));
+    body.appendChild(actions);
+    U.modal({ title: title, body: body, actions: [{ label: 'Done', kind: 'gold', onClick: function (c) { c(); } }] });
   }
 
   /* ---------------- Add school ---------------- */
 
   function openProvisionModal() {
-    var body = el('div');
-    var idInput = el('input', { type: 'text', placeholder: 'auto-filled from the school name' });
+    var body = el('div', { class: 'form' });
     var nameInput = el('input', { type: 'text', placeholder: 'e.g. St Mary’s Basic School' });
+    var contactInput = el('input', { type: 'text', placeholder: 'e.g. Ama Mensah' });
+    var emailInput = el('input', { type: 'email', placeholder: 'optional' });
+    var phoneInput = el('input', { type: 'tel', placeholder: 'optional, e.g. 024 123 4567' });
+    var idInput = el('input', { type: 'text', placeholder: 'auto-filled from the school name' });
+    var demoBox = el('input', { type: 'checkbox' });
     var preview = el('div', { class: 'help', style: 'font-family:monospace' });
     // Auto-suggest the web-address slug from the name as the operator types,
     // but stop the moment they touch the ID field themselves — their edit
     // always wins over the suggestion.
     var idTouched = false;
-    function updatePreview() { preview.textContent = 'Web address: zetclass.com/' + (idInput.value || '…'); }
+    function updatePreview() { preview.textContent = 'Web address: ' + global.location.origin + '/' + (idInput.value || '…'); }
     idInput.addEventListener('input', function () { idTouched = true; updatePreview(); });
-    nameInput.addEventListener('input', function () {
-      if (!idTouched) idInput.value = slugify(nameInput.value);
-      updatePreview();
-    });
+    nameInput.addEventListener('input', function () { if (!idTouched) idInput.value = slugify(nameInput.value); updatePreview(); });
     updatePreview();
     body.appendChild(field('School name', nameInput));
-    body.appendChild(field('School ID / web address', idInput));
+    body.appendChild(field('Contact person', contactInput, 'Becomes the school’s first Administrator.'));
+    body.appendChild(field('Email', emailInput));
+    body.appendChild(field('Phone / WhatsApp', phoneInput));
+    body.appendChild(field('Web address', idInput, 'Lowercase letters, numbers and hyphens only. A few words (admin, pricing, api…) are reserved.'));
     body.appendChild(preview);
-    body.appendChild(el('div', { class: 'help', text: 'Lowercase letters, numbers and hyphens only — edit the auto-filled suggestion for something shorter if you prefer. A few words (admin, pricing, api, etc.) are reserved and cannot be used. New schools start on a 30-day free trial, which you can change any time from Subscription.' }));
+    body.appendChild(el('label', { class: 'check-label', style: 'display:flex;gap:.45rem;align-items:center;margin-top:.6rem' }, [demoBox, document.createTextNode('Fill with sample demo pupils and demo logins (for training only)')]));
+    body.appendChild(el('div', { class: 'help', text: 'A normal school starts empty with one Administrator login and a 30-day free trial. You get a one-time temporary password to hand over.' }));
     var e = errBox(); body.appendChild(e);
 
     U.modal({
-      title: 'Add a new school', body: body,
+      title: 'Add a school', body: body,
       actions: [
         { label: 'Cancel', onClick: function (c) { c(); } },
         { label: 'Create', kind: 'gold', onClick: function (c) {
           e.style.display = 'none';
           if (!nameInput.value.trim()) { showErr(e, 'School name is required.'); return; }
-          DB.platformProvision(idInput.value.trim(), nameInput.value.trim()).then(function (res) {
-            U.toast('School created: ' + (res.school_id || ''));
+          DB.platformProvision({
+            name: nameInput.value.trim(), school_id: idInput.value.trim() || undefined,
+            contact_name: contactInput.value.trim() || undefined, email: emailInput.value.trim() || undefined,
+            phone: phoneInput.value.trim() || undefined, demo: demoBox.checked
+          }).then(function (res) {
             c(); loadSchools();
-          }).catch(function (err) { showErr(e, (err && err.message) || 'Could not create school.'); });
+            U.toast('School created: ' + (res.school_id || ''));
+            if (res.temp_password) showCredentials('School created — hand these over', { name: nameInput.value.trim(), phone: phoneInput.value.trim() }, res);
+          }).catch(function (err) { showErr(e, msgOf(err, 'Could not create school.')); });
         } }
       ]
     });
   }
 
-  /* ---------------- Subscription: plan + trial in ONE place ---------------- */
+  /* ---------------- Manage one school ---------------- */
 
-  function openSubscriptionModal(s) {
+  function section(title, nodes) {
+    return el('div', { class: 'card', style: 'margin-bottom:.7rem' }, [el('h3', { text: title })].concat(nodes));
+  }
+
+  function openManageModal(schoolId) {
+    var row = schools.filter(function (s) { return s.id === schoolId; })[0];
+    if (!row) return;
     var body = el('div');
-    var row = s; // refreshed in place after each change
+    var modal;
+
+    // Replace our copy of the school with the server's fresh answer, then redraw.
+    function applyServer(res) {
+      var sub = res && res.subscription;
+      if (sub) { ['trial_ends_at', 'paid_until', 'state', 'days_left', 'status', 'plan'].forEach(function (k) { row[k] = sub[k]; }); }
+      paint(); loadSchools();
+    }
+    function refreshRow() { return loadSchools().then(function () { row = schools.filter(function (s) { return s.id === schoolId; })[0] || row; paint(); }); }
 
     function paint() {
       U.clear(body);
-
       body.appendChild(el('div', { style: 'display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.8rem' }, [
-        stateChip(row),
-        el('span', { class: 'muted', style: 'font-size:.82rem', text: trialSummary(row, true) })
+        stateChip(row), el('span', { class: 'muted', style: 'font-size:.82rem', text: subLine(row, true) })
       ]));
-
-      // ---- Plan ----
-      var planSel = el('select');
-      PLANS.forEach(function (p) {
-        var o = el('option', { value: p, text: PLAN_LABEL[p] });
-        if ((row.plan || '') === p) o.selected = true;
-        planSel.appendChild(o);
-      });
-      var planErr = errBox();
-      var planCard = el('div', { class: 'card', style: 'margin-bottom:.7rem' }, [el('h3', { text: 'Plan' })]);
-      planCard.appendChild(field('Subscription tier', planSel));
-      planCard.appendChild(planErr);
-      planCard.appendChild(el('div', { class: 'btn-row' }, [
-        el('button', { class: 'btn gold', text: 'Save plan', onclick: function () {
-          planErr.style.display = 'none';
-          DB.platformPlan(row.id, planSel.value).then(function () {
-            row.plan = planSel.value;
-            U.toast('Plan updated to ' + PLAN_LABEL[planSel.value] + '.');
-            paint(); loadSchools();
-          }).catch(function (err) { showErr(planErr, (err && err.message) || 'Could not change plan.'); });
-        } })
-      ]));
-      body.appendChild(planCard);
-
-      // ---- Free trial ----
-      var trialErr = errBox();
-      var trialCard = el('div', { class: 'card' }, [el('h3', { text: 'Free trial' })]);
-      trialCard.appendChild(el('div', { class: 'help', text: 'The trial is stored on our server, not in the school’s browser, so a school cannot give itself extra time.' }));
-
-      var daysInput = el('input', { type: 'number', min: '1', max: '3650', value: '30', style: 'width:110px' });
-      var extendRow = el('div', { style: 'display:flex;gap:.5rem;align-items:flex-end;flex-wrap:wrap' }, [
-        field('Add days', daysInput),
-        el('button', { class: 'btn', text: 'Extend trial', onclick: function () {
-          trialErr.style.display = 'none';
-          var n = Number(daysInput.value);
-          if (!isFinite(n) || n < 1 || n > 3650) { showErr(trialErr, 'Enter a whole number of days between 1 and 3650.'); return; }
-          DB.platformExtendTrial(row.id, Math.floor(n)).then(function (res) { applySub(res); U.toast('Trial extended.'); })
-            .catch(function (err) { showErr(trialErr, (err && err.message) || 'Could not extend trial.'); });
-        } })
-      ]);
-      trialCard.appendChild(extendRow);
-      trialCard.appendChild(el('div', { class: 'help', text: 'Adds to the current end date if the trial is still running, or starts fresh from today if it has already expired.' }));
-
-      var dateInput = el('input', { type: 'date', value: row.trial_ends_at || plusDays(30), style: 'width:180px' });
-      var dateRow = el('div', { style: 'display:flex;gap:.5rem;align-items:flex-end;flex-wrap:wrap;margin-top:.6rem' }, [
-        field('Or set an exact end date', dateInput),
-        el('button', { class: 'btn', text: 'Set date', onclick: function () {
-          trialErr.style.display = 'none';
-          if (!/^\d{4}-\d{2}-\d{2}$/.test(dateInput.value || '')) { showErr(trialErr, 'Pick a valid date.'); return; }
-          DB.platformSetTrial(row.id, dateInput.value).then(function (res) { applySub(res); U.toast('Trial end date set.'); })
-            .catch(function (err) { showErr(trialErr, (err && err.message) || 'Could not set trial date.'); });
-        } })
-      ]);
-      trialCard.appendChild(dateRow);
-
-      trialCard.appendChild(el('div', { class: 'btn-row', style: 'margin-top:.7rem' }, [
-        el('button', { class: 'btn ghost', text: 'End trial now (mark as paid)', onclick: function () {
-          trialErr.style.display = 'none';
-          if (!global.confirm('End the free trial for ' + (row.name || row.id) + '?\n\nThey will be treated as a fully paid school — the app stays fully editable and no countdown is shown.')) return;
-          DB.platformClearTrial(row.id).then(function (res) { applySub(res); U.toast('Trial ended — school marked as paid.'); })
-            .catch(function (err) { showErr(trialErr, (err && err.message) || 'Could not end trial.'); });
-        } })
-      ]));
-      trialCard.appendChild(trialErr);
-      body.appendChild(trialCard);
-
-      body.appendChild(el('div', { class: 'help', style: 'margin-top:.6rem', text: 'Every change here is recorded in the Activity log.' }));
+      body.appendChild(el('div', { class: 'muted', style: 'font-size:.8rem;margin:-.4rem 0 .8rem;word-break:break-all', text: global.location.origin + '/' + row.id }));
+      body.appendChild(subscriptionSection());
+      body.appendChild(contactSection());
+      body.appendChild(accountsSection());
+      body.appendChild(supportSection());
     }
 
-    // The trial routes return the recomputed subscription state — trust that
-    // rather than guessing locally, so the modal always shows what the server
-    // actually decided.
-    function applySub(res) {
-      var sub = res && res.subscription;
-      if (sub) {
-        row.trial_ends_at = sub.trial_ends_at;
-        row.state = sub.state;
-        row.days_left = sub.days_left;
-        row.status = sub.status;
-        row.plan = sub.plan;
+    /* --- Subscription: extend trial, record payment, plan --- */
+    function subscriptionSection() {
+      var kids = [];
+
+      // Free trial: one-tap extensions, plus an exact date.
+      var trialErr = errBox();
+      function extend(days) {
+        trialErr.style.display = 'none';
+        if (row.paid_until && !global.confirm('This school has PAID until ' + row.paid_until + '.\n\nExtending a free trial puts it back on a free trial and replaces that paid date. To add paid time instead, use “Record a payment” below.\n\nContinue?')) return;
+        DB.platformExtendTrial(row.id, days).then(function (res) { applyServer(res); U.toast('Free trial extended by ' + days + ' days.'); })
+          .catch(function (err) { showErr(trialErr, msgOf(err, 'Could not extend the trial.')); });
       }
-      paint();
-      loadSchools();
+      var customDays = el('input', { type: 'number', min: '1', max: '3650', value: '14', style: 'width:90px', 'aria-label': 'Days to add' });
+      var dateInput = el('input', { type: 'date', value: row.trial_ends_at || addDays(today(), 30), style: 'width:170px', 'aria-label': 'Exact trial end date' });
+      kids.push(el('h4', { text: 'Free trial', style: 'margin:.2rem 0 .1rem' }));
+      kids.push(el('div', { class: 'help', text: 'Stored on our server, so a school cannot give itself extra time. “+1 month” adds 30 days to the current end date (or to today if the trial has already ended).' }));
+      kids.push(el('div', { class: 'btn-row', style: 'margin:.5rem 0' }, [
+        el('button', { class: 'btn gold', text: '+ 1 month', onclick: function () { extend(30); } }),
+        el('button', { class: 'btn ghost', text: '+ 2 weeks', onclick: function () { extend(14); } }),
+        el('button', { class: 'btn ghost', text: '+ 3 months', onclick: function () { extend(90); } })
+      ]));
+      kids.push(el('div', { style: 'display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.4rem' }, [
+        el('span', { class: 'muted', text: 'Add' }), customDays, el('span', { class: 'muted', text: 'days' }),
+        el('button', { class: 'btn sm', text: 'Add days', onclick: function () {
+          var n = Number(customDays.value);
+          if (!isFinite(n) || n < 1 || n > 3650) { showErr(trialErr, 'Enter a whole number of days between 1 and 3650.'); return; }
+          extend(Math.floor(n));
+        } })
+      ]));
+      kids.push(el('div', { style: 'display:flex;gap:.5rem;align-items:center;flex-wrap:wrap' }, [
+        el('span', { class: 'muted', text: 'Or end on' }), dateInput,
+        el('button', { class: 'btn sm', text: 'Set date', onclick: function () {
+          trialErr.style.display = 'none';
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(dateInput.value || '')) { showErr(trialErr, 'Pick a valid date.'); return; }
+          DB.platformSetTrial(row.id, dateInput.value).then(function (res) { applySub(res, 'Free trial end date set.'); })
+            .catch(function (err) { showErr(trialErr, msgOf(err, 'Could not set the date.')); });
+        } })
+      ]));
+      function applySub(res, msg) { applyServer(res); U.toast(msg); }
+      kids.push(trialErr);
+
+      // Payment: moves a school from trial to paid.
+      var payErr = errBox();
+      var planSel = el('select', { 'aria-label': 'Plan' });
+      PLANS.forEach(function (p) { var o = el('option', { value: p, text: PLAN_LABEL[p] }); if ((row.plan || 'basic') === p) o.selected = true; planSel.appendChild(o); });
+      var periodSel = el('select', { 'aria-label': 'Period paid for' });
+      [[String(TERM_DAYS), '1 term (' + TERM_DAYS + ' days)'], [String(TERM_DAYS * 2), '2 terms (' + TERM_DAYS * 2 + ' days)'], ['365', 'Full year (365 days)'], ['custom', 'Pick an end date…']]
+        .forEach(function (o) { periodSel.appendChild(el('option', { value: o[0], text: o[1] })); });
+      var endInput = el('input', { type: 'date', value: addDays(today(), TERM_DAYS), style: 'width:170px;display:none', 'aria-label': 'Paid until' });
+      var amountInput = el('input', { type: 'number', min: '0', step: '0.01', placeholder: 'GHS (optional)', style: 'width:130px', 'aria-label': 'Amount received' });
+      var noteInput = el('input', { type: 'text', maxlength: '200', placeholder: 'Reference, e.g. MoMo 0245… (optional)', style: 'flex:1;min-width:180px', 'aria-label': 'Payment note' });
+      var previewLine = el('div', { class: 'help', style: 'font-weight:600' });
+      function computeEnd() {
+        if (periodSel.value === 'custom') return endInput.value;
+        var base = (row.paid_until && row.paid_until > today()) ? row.paid_until : today();   // same rule as the server: renewals stack
+        return addDays(base, Number(periodSel.value));
+      }
+      function updatePreview() {
+        endInput.style.display = periodSel.value === 'custom' ? '' : 'none';
+        var end = computeEnd();
+        previewLine.textContent = end ? 'School will be paid until ' + end + (periodSel.value !== 'custom' && row.paid_until && row.paid_until > today() ? ' (added to their current paid time)' : '') + '.' : '';
+      }
+      periodSel.addEventListener('change', updatePreview); endInput.addEventListener('input', updatePreview); updatePreview();
+
+      kids.push(el('hr', { style: 'border:0;border-top:1px solid var(--line);margin:1rem 0' }));
+      kids.push(el('h4', { text: 'Record a payment', style: 'margin:.2rem 0 .1rem' }));
+      kids.push(el('div', { class: 'help', text: 'Use this when a school has paid. It ends the free trial, sets the plan, and unlocks editing until the date below. When that date passes the school becomes view-only automatically.' }));
+      kids.push(el('div', { style: 'display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin:.5rem 0' }, [planSel, periodSel, endInput]));
+      kids.push(el('div', { style: 'display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.4rem' }, [amountInput, noteInput]));
+      kids.push(previewLine);
+      kids.push(el('div', { class: 'btn-row', style: 'margin-top:.5rem' }, [
+        el('button', { class: 'btn', text: 'Record payment', onclick: function () {
+          payErr.style.display = 'none';
+          var p = { school_id: row.id, plan: planSel.value };
+          if (periodSel.value === 'custom') {
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(endInput.value || '')) { showErr(payErr, 'Pick the date they have paid until.'); return; }
+            p.paid_until = endInput.value;
+          } else { p.days = Number(periodSel.value); }
+          if (amountInput.value !== '') p.amount = Number(amountInput.value);
+          if (noteInput.value.trim()) p.note = noteInput.value.trim();
+          DB.platformPayment(p).then(function (res) { applyServer(res); U.toast('Payment recorded.'); })
+            .catch(function (err) { showErr(payErr, msgOf(err, 'Could not record the payment.')); });
+        } })
+      ]));
+      kids.push(payErr);
+      return section('Subscription', kids);
+    }
+
+    /* --- Contact & private notes --- */
+    function contactSection() {
+      var kids = [];
+      function line(label, node) { return el('div', { style: 'margin:.2rem 0;font-size:.9rem' }, [el('span', { class: 'muted', text: label + ': ' }), node]); }
+      kids.push(line('Contact person', document.createTextNode(row.contact_name || '—')));
+      kids.push(line('Email', row.email ? el('a', { href: 'mailto:' + row.email, text: row.email }) : document.createTextNode('—')));
+      var wa = waLink(row.phone, 'Hello ' + (row.contact_name || '') + ', this is Zetranova about ' + (row.name || 'your school') + ' on Zetclass. ');
+      kids.push(line('Phone', row.phone
+        ? el('span', {}, [el('a', { href: 'tel:' + row.phone, text: row.phone }), wa ? document.createTextNode(' · ') : null, wa ? el('a', { href: wa, target: '_blank', rel: 'noopener', text: 'WhatsApp' }) : null])
+        : document.createTextNode('—')));
+      kids.push(el('div', { class: 'btn-row', style: 'margin:.5rem 0' }, [el('button', { class: 'btn sm', text: 'Edit school details…', onclick: openEditDetails })]));
+      var noteErr = errBox();
+      var note = el('textarea', { rows: '3', maxlength: '500', placeholder: 'Private notes — only you can see these (e.g. “Called 3 Oct, wants Growth plan after the trial”).', style: 'width:100%', 'aria-label': 'Private notes' });
+      note.value = row.notes || '';
+      kids.push(el('div', { class: 'field', style: 'margin-top:.6rem' }, [el('label', { text: 'Private notes' }), note]));
+      kids.push(el('div', { class: 'btn-row' }, [el('button', { class: 'btn sm', text: 'Save note', onclick: function () {
+        noteErr.style.display = 'none';
+        DB.platformNote(row.id, note.value).then(function (res) { row.notes = res.notes; U.toast('Note saved.'); loadSchools(); })
+          .catch(function (err) { showErr(noteErr, msgOf(err, 'Could not save the note.')); });
+      } })]));
+      kids.push(noteErr);
+      return section('Contact & notes', kids);
+    }
+
+    /* --- Edit name / contact person / email / phone (the web address cannot change) --- */
+    function openEditDetails() {
+      var form = el('div', { class: 'form' });
+      var nameI = el('input', { type: 'text', maxlength: '120', value: row.name || '' });
+      var contactI = el('input', { type: 'text', maxlength: '80', value: row.contact_name || '' });
+      var emailI = el('input', { type: 'email', maxlength: '160', value: row.email || '' });
+      var phoneI = el('input', { type: 'tel', maxlength: '30', value: row.phone || '' });
+      form.appendChild(field('School name', nameI));
+      form.appendChild(field('Contact person', contactI));
+      form.appendChild(field('Email', emailI, 'Password-reset emails go here. Each school needs its own email and phone number.'));
+      form.appendChild(field('Phone / WhatsApp', phoneI));
+      form.appendChild(el('div', { class: 'help', text: 'The web address ' + global.location.origin + '/' + row.id + ' cannot be changed (all records and logins are tied to it). To use a different address, add a new school and delete this one.' }));
+      var e = errBox(); form.appendChild(e);
+      U.modal({
+        title: 'Edit school details', body: form,
+        actions: [
+          { label: 'Cancel', onClick: function (c) { c(); } },
+          { label: 'Save', kind: 'gold', onClick: function (c) {
+            e.style.display = 'none';
+            if (!nameI.value.trim()) { showErr(e, 'School name is required.'); return; }
+            DB.platformDetails(row.id, { name: nameI.value, contact_name: contactI.value, email: emailI.value, phone: phoneI.value })
+              .then(function (res) {
+                c(); U.toast(res.unchanged ? 'Nothing changed.' : 'School details saved.');
+                if (res.school) { ['name', 'contact_name', 'email', 'phone'].forEach(function (k) { row[k] = res.school[k]; }); }
+                paint(); loadSchools();
+              })
+              .catch(function (err) { showErr(e, msgOf(err, 'Could not save the details.')); });
+          } }
+        ]
+      });
+    }
+
+    /* --- Login accounts: enable/disable, reset password --- */
+    function accountsSection() {
+      var host = el('div', {}, [el('div', { class: 'loader', text: 'Loading accounts…' })]);
+      function paintUsers(users) {
+        U.clear(host);
+        host.appendChild(el('div', { class: 'help', text: 'Disabling an account blocks that person from signing in; their records are untouched. “Reset password” gives you a one-time temporary password to pass on (this is the “forgot password” help).' }));
+        if (!users.length) { host.appendChild(el('p', { class: 'muted', text: 'This school has no login accounts.' })); return; }
+        var errB = errBox(); host.appendChild(errB);
+        var table = el('table', { class: 'data' });
+        table.appendChild(el('thead', {}, [el('tr', {}, ['Name', 'Username', 'Role', 'Status', ''].map(function (t) { return el('th', { text: t }); }))]));
+        var tb = el('tbody');
+        users.forEach(function (u) {
+          var toggle = el('button', { class: 'btn sm ghost', text: u.disabled ? 'Enable' : 'Disable', onclick: function () {
+            errB.style.display = 'none'; toggle.disabled = true;
+            DB.platformUserStatus(row.id, u.id, !u.disabled).then(function (res) { U.toast(res.disabled ? 'Account disabled.' : 'Account enabled.'); reloadUsers(); })
+              .catch(function (err) { toggle.disabled = false; showErr(errB, msgOf(err, 'Could not change this account.')); });
+          } });
+          var reset = el('button', { class: 'btn sm', text: 'Reset password', onclick: function () {
+            if (!global.confirm('Issue a new temporary password for ' + (u.name || u.username) + '?\n\nTheir current password stops working immediately.')) return;
+            DB.platformResetPassword(row.id, u.id).then(function (res) { showCredentials('New temporary password', row, Object.assign({ school_id: row.id }, res)); })
+              .catch(function (err) { showErr(errB, msgOf(err, 'Could not reset the password.')); });
+          } });
+          tb.appendChild(el('tr', {}, [
+            el('td', { text: u.name || '—' }),
+            el('td', {}, [el('code', { style: 'font-size:.75rem', text: u.username || '—' })]),
+            el('td', { text: u.role || '—' }),
+            el('td', {}, [el('span', { class: 'tag', style: 'background:' + (u.disabled ? '#b91c1c' : '#0f5e5e') + ';color:#fff', text: u.disabled ? 'Disabled' : 'Active' })]),
+            el('td', { class: 'actions', style: 'display:flex;gap:.3rem;flex-wrap:wrap' }, [reset, toggle])
+          ]));
+        });
+        table.appendChild(tb);
+        host.appendChild(el('div', { class: 'table-wrap' }, [table]));
+      }
+      function reloadUsers() {
+        DB.platformUsers(row.id).then(paintUsers).catch(function (err) {
+          U.clear(host).appendChild(el('p', { style: 'color:#b3261e', text: 'Could not load accounts: ' + msgOf(err, 'error') }));
+        });
+      }
+      reloadUsers();
+      return section('Login accounts', [host]);
+    }
+
+    /* --- Support tools: log in as them, suspend, reset data, history --- */
+    function supportSection() {
+      var live = row.status === 'active' || row.status === 'trial' || row.status === 'grace';
+      var errS = errBox();
+      var kids = [];
+      kids.push(el('div', { class: 'help', text: 'Everything you do here is recorded in the activity log.' }));
+      kids.push(el('div', { class: 'btn-row', style: 'margin:.5rem 0' }, [
+        el('button', { class: 'btn', text: 'Log in as this school', onclick: function () {
+          DB.platformImpersonate(row.id).then(function (res) { modal.close(); if (HOOKS.onImpersonate) HOOKS.onImpersonate(res); })
+            .catch(function (err) { showErr(errS, msgOf(err, 'Could not log in as this school.')); });
+        } }),
+        el('button', { class: 'btn ghost', text: 'Activity for this school', onclick: function () { openAuditModal(row.id); } }),
+        el('button', { class: 'btn ghost', text: live ? 'Suspend school' : 'Reactivate school', onclick: function () {
+          var next = live ? 'suspended' : 'active';
+          if (live && !global.confirm('Suspend ' + (row.name || row.id) + '?\n\nNobody at this school (staff or parents) will be able to sign in until you reactivate. No data is deleted.')) return;
+          DB.platformSuspend(row.id, next).then(function () { U.toast(live ? 'School suspended.' : 'School reactivated.'); refreshRow(); })
+            .catch(function (err) { showErr(errS, msgOf(err, 'Could not change the status.')); });
+        } })
+      ]));
+      kids.push(el('div', { style: 'border-top:1px solid var(--line);margin-top:.8rem;padding-top:.8rem' }, [
+        el('div', { style: 'font-weight:700;color:#b91c1c', text: 'Danger zone' }),
+        el('div', { class: 'help', text: 'Reset wipes every pupil, staff member, payment and record for this school and starts it again empty. Subscription and contact details are kept. You get a new temporary password for its Administrator.' }),
+        el('div', { class: 'btn-row', style: 'margin-top:.4rem' }, [el('button', { class: 'btn sm danger', text: 'Reset school data…', onclick: confirmReset }), el('button', { class: 'btn sm danger', text: 'Delete school permanently…', onclick: confirmDelete })]),
+        el('div', { class: 'help', text: 'Delete removes the school AND its data completely (use for test signups, or when a school asks for its information to be erased). It cannot be undone.' })
+      ]));
+      kids.push(errS);
+
+      function confirmReset() {
+        var box = el('div', { class: 'form' });
+        var input = el('input', { type: 'text', placeholder: row.id, autocomplete: 'off', 'aria-label': 'Type the school address to confirm' });
+        box.appendChild(el('p', { text: 'This permanently deletes all of ' + (row.name || row.id) + '’s data and cannot be undone.' }));
+        box.appendChild(field('Type  ' + row.id + '  to confirm', input));
+        var e = errBox(); box.appendChild(e);
+        U.modal({ title: 'Reset school data', body: box, actions: [
+          { label: 'Cancel', onClick: function (c) { c(); } },
+          { label: 'Reset everything', kind: 'danger', onClick: function (c) {
+            if (input.value.trim() !== row.id) { showErr(e, 'That does not match the school address.'); return; }
+            DB.platformReset(row.id).then(function (res) { c(); U.toast('School reset.'); refreshRow(); if (res.temp_password) showCredentials('School reset — new Administrator password', row, res); })
+              .catch(function (err) { showErr(e, msgOf(err, 'Could not reset the school.')); });
+          } }
+        ] });
+      }
+      function confirmDelete() {
+        var box = el('div', { class: 'form' });
+        var input = el('input', { type: 'text', placeholder: row.id, autocomplete: 'off', 'aria-label': 'Type the school address to confirm' });
+        box.appendChild(el('p', { text: 'This permanently deletes ' + (row.name || row.id) + ' — its pupils, staff, payments, settings and logins — and removes it from your list. This cannot be undone.' }));
+        box.appendChild(field('Type  ' + row.id + '  to confirm', input));
+        var e = errBox(); box.appendChild(e);
+        U.modal({ title: 'Delete school permanently', body: box, actions: [
+          { label: 'Cancel', onClick: function (c) { c(); } },
+          { label: 'Delete forever', kind: 'danger', onClick: function (c) {
+            if (input.value.trim() !== row.id) { showErr(e, 'That does not match the school address.'); return; }
+            DB.platformDelete(row.id, input.value.trim()).then(function () { c(); modal.close(); U.toast('School deleted.'); loadSchools(); })
+              .catch(function (err) { showErr(e, msgOf(err, 'Could not delete the school.')); });
+          } }
+        ] });
+      }
+      return section('Support tools', kids);
     }
 
     paint();
-    U.modal({
-      title: 'Subscription — ' + (s.name || s.id),
-      body: body,
-      actions: [{ label: 'Done', onClick: function (c) { c(); } }]
-    });
-  }
-
-  /* ---------------- Per-user enable / disable ---------------- */
-
-  function openUsersModal(s) {
-    var body = el('div', {}, [el('div', { class: 'loader', text: 'Loading accounts…' })]);
-
-    function paint(users) {
-      U.clear(body);
-      body.appendChild(el('div', { class: 'help', text: 'Disabling an account blocks that person from logging in. Their records are untouched, and you can re-enable them at any time. To stop a whole school, use Suspend instead.' }));
-      if (!users.length) { body.appendChild(el('p', { class: 'muted', text: 'This school has no login accounts.' })); return; }
-
-      var errB = errBox(); body.appendChild(errB);
-      var table = el('table', { class: 'data' });
-      table.appendChild(el('thead', {}, [el('tr', {}, ['Name', 'Username', 'Role', 'Status', ''].map(function (t) { return el('th', { text: t }); }))]));
-      var tb = el('tbody');
-      users.forEach(function (u) {
-        var btn = el('button', { class: 'btn sm', text: u.disabled ? 'Enable' : 'Disable', onclick: function () {
-          errB.style.display = 'none';
-          btn.disabled = true;
-          DB.platformUserStatus(s.id, u.id, !u.disabled).then(function (res) {
-            u.disabled = res.disabled;
-            U.toast(res.disabled ? 'Account disabled.' : 'Account enabled.');
-            reload();
-          }).catch(function (err) {
-            btn.disabled = false;
-            showErr(errB, (err && err.message) || 'Could not change this account.');
-          });
-        } });
-        tb.appendChild(el('tr', {}, [
-          el('td', { text: u.name || '—' }),
-          el('td', {}, [el('code', { style: 'font-size:.75rem', text: u.username || '—' })]),
-          el('td', { text: u.role || '—' }),
-          el('td', {}, [el('span', { class: 'tag', style: 'background:' + (u.disabled ? '#b91c1c' : '#0f5e5e') + ';color:#fff', text: u.disabled ? 'Disabled' : 'Active' })]),
-          el('td', { class: 'actions' }, [btn])
-        ]));
-      });
-      table.appendChild(tb);
-      body.appendChild(el('div', { class: 'table-wrap' }, [table]));
-    }
-
-    function reload() {
-      DB.platformUsers(s.id).then(paint).catch(function (err) {
-        U.clear(body).appendChild(el('p', { style: 'color:#b3261e', text: 'Could not load accounts: ' + ((err && err.message) || 'error') }));
-      });
-    }
-
-    reload();
-    U.modal({
-      title: 'Login accounts — ' + (s.name || s.id),
-      body: body,
+    modal = U.modal({
+      title: row.name || row.id, wide: true, body: body,
       actions: [{ label: 'Done', onClick: function (c) { c(); } }]
     });
   }
@@ -378,9 +655,9 @@
   /* ---------------- Audit / activity log ---------------- */
 
   var ACTION_LABEL = {
-    provision: 'Created school', status: 'Changed status', trial: 'Changed trial',
-    plan: 'Changed plan', reset: 'Reset school data',
-    user_disable: 'Disabled an account', user_enable: 'Enabled an account',
+    provision: 'Created school', signup: 'School signed up', status: 'Changed status', trial: 'Changed free trial',
+    plan: 'Changed plan', password_request: 'Asked to reset password (forgot password)', password_reset_self: 'Reset own password by email link', payment: 'Recorded payment', note: 'Edited note', details: 'Edited school details', password_reset: 'Issued temporary password',
+    reset: 'Reset school data', delete: 'Deleted school', user_disable: 'Disabled an account', user_enable: 'Enabled an account',
     impersonate: 'Logged in as school'
   };
 
@@ -389,9 +666,12 @@
     if (r.action === 'trial')  return (d.from || 'no trial') + ' → ' + (d.to || 'no trial');
     if (r.action === 'plan')   return (d.from || '—') + ' → ' + (d.to || '—');
     if (r.action === 'status') return (d.from || '—') + ' → ' + (d.to || '—');
-    if (r.action === 'provision') return d.name || '';
+    if (r.action === 'payment') return (PLAN_LABEL[d.plan] || d.plan || '') + ' · paid until ' + (d.to || '—') + (d.amount != null ? ' · GHS ' + d.amount : '') + (d.note ? ' · ' + d.note : '');
+    if (r.action === 'provision' || r.action === 'signup' || r.action === 'delete') return d.name || '';
+    if (r.action === 'details') return Object.keys(d).map(function (k) { return k.replace('_', ' ') + ' changed'; }).join(', ');
     if (r.action === 'impersonate') return 'expired ' + (d.expires_at || '').slice(0, 19).replace('T', ' ');
-    if (r.action === 'user_disable' || r.action === 'user_enable') return d.username || r.target_id || '';
+    if (r.action === 'password_request') return (d.username || '') + (d.email_sent ? ' · email sent' : ' · email not sent');
+    if (r.action === 'user_disable' || r.action === 'user_enable' || r.action === 'password_reset' || r.action === 'password_reset_self') return d.username || r.target_id || '';
     return '';
   }
 
@@ -417,12 +697,12 @@
       table.appendChild(tb);
       body.appendChild(el('div', { class: 'table-wrap' }, [table]));
     }).catch(function (err) {
-      U.clear(body).appendChild(el('p', { style: 'color:#b3261e', text: 'Could not load the activity log: ' + ((err && err.message) || 'error') }));
+      U.clear(body).appendChild(el('p', { style: 'color:#b3261e', text: 'Could not load the activity log: ' + msgOf(err, 'error') }));
     });
 
     U.modal({
       title: schoolId ? 'Activity log — ' + schoolId : 'Activity log',
-      body: body,
+      body: body, wide: true,
       actions: [{ label: 'Close', onClick: function (c) { c(); } }]
     });
   }

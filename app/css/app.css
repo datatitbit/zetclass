@@ -231,3 +231,35 @@ table.data td.actions { white-space: nowrap; }
 /* loader */
 .loader { text-align:center; padding:2.4rem; color:var(--muted); }
 #root > .loader { min-height:60vh; display:flex; align-items:center; justify-content:center; }
+
+/* ---- Signup & sign-in extras (simple, beginner-friendly forms) ---- */
+.field-error { color:#b3261e; font-size:.8rem; margin-top:.3rem; min-height:0; }
+.field-error:empty { display:none; }
+.form input.input-error { border-color:#b3261e; box-shadow:0 0 0 3px rgba(179,38,30,.12); }
+.pw-wrap { position:relative; }
+.pw-wrap input { padding-right:4.2rem; }
+.pw-toggle { position:absolute; right:.35rem; top:50%; transform:translateY(-50%); background:none; border:0; color:var(--teal); font-weight:700; font-size:.82rem; padding:.45rem .6rem; cursor:pointer; border-radius:7px; }
+.pw-toggle:hover { background:var(--teal-light); }
+.pw-toggle:focus-visible { outline:2px solid var(--teal); outline-offset:1px; }
+/* Honeypot: off-screen (not display:none, which some bots detect) */
+.hp-field { position:absolute !important; left:-10000px; top:auto; width:1px; height:1px; overflow:hidden; }
+.login-alt { text-align:center; margin-top:1rem; font-size:.88rem; color:var(--muted); }
+.login-alt a { color:var(--teal); font-weight:700; text-decoration:none; }
+.login-alt a:hover { text-decoration:underline; }
+.login-wrap .card .help.login-alt { margin-top:.6rem; }
+.welcome-box { background:var(--teal-light); border-radius:12px; padding:.4rem 1rem; margin:.4rem 0 .8rem; text-align:left; }
+.welcome-row { padding:.65rem 0; border-bottom:1px solid rgba(15,94,94,.12); }
+.welcome-row:last-child { border-bottom:0; }
+.welcome-label { font-size:.74rem; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.03em; }
+.welcome-value { font-size:1.02rem; font-weight:700; color:var(--ink); word-break:break-all; margin-top:.1rem; }
+.welcome-actions { display:flex; flex-direction:column; gap:.55rem; margin-top:.9rem; }
+.welcome-actions .btn { width:100%; padding:.7rem 1rem; font-size:.95rem; }
+@media (min-width:480px){ .welcome-actions { flex-direction:row-reverse; } .welcome-actions .btn { width:auto; flex:1; } }
+.login-form .btn { min-height:44px; }
+@media (prefers-reduced-motion: reduce){ .btn { transition:none; } }
+.start-steps { margin:.3rem 0 0; padding-left:1.3rem; }
+.start-steps li { padding:.45rem 0; }
+.start-steps a { color:var(--teal); font-weight:700; text-decoration:none; }
+.start-steps a:hover { text-decoration:underline; }
+.forgot-link { font-size:.85rem; color:var(--teal); font-weight:600; text-decoration:none; }
+.forgot-link:hover { text-decoration:underline; }

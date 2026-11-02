@@ -49,6 +49,9 @@
     // boot()/the admin area renders, so they only ever affect the very next
     // render — later in-app navigation is untouched.
     isAdminArea: false,
+    isSignupArea: false,   // true when the address is /signup (API mode only)
+    isForgotArea: false,   // /forgot-password
+    isResetArea: false,    // /reset-password?school=...&token=...
     pendingHash: null,
     pendingAdminHash: null,
     // API mode only: set when a background request comes back 403 (subscription
@@ -316,6 +319,9 @@
     chooseRoleApi();
   };
   global.DB_CONFIG.onForbidden = function (message) {
+    // The "trial/subscription ended" banner is already on screen: don't stack a
+    // second red bar saying the same thing — a short popup is enough.
+    if (App.license && App.license.locked && App.user) { if (U && U.toast) U.toast(message || 'Changes are switched off.', 'warn'); return; }
     App.forbiddenMessage = message || "This school's subscription is inactive.";
     if (App.user && App.ctx && App.ctx.school) { renderShell(); router(); }
     else if (U && U.toast) U.toast(App.forbiddenMessage, 'err');
@@ -433,7 +439,7 @@
       // which disappears once passwords are changed) — an Admin can clear or
       // restore the sample students/staff/inventory at any time from Settings
       // → Demo Data. Purely a testing convenience; it never touches real data.
-      form.appendChild(U.el('div', { class: 'help', style: 'margin-top:.8rem;text-align:center;font-size:.75rem', text: 'This school starts with sample demo data for testing. An Admin can clear or restore it anytime in Settings → Demo Data.' }));
+      form.appendChild(U.el('div', { class: 'help', style: 'margin-top:.8rem;text-align:center;font-size:.75rem', text: 'This school starts with sample demo data for testing. An Admin can clear or restore it anytime in Settings → Sample Data.' }));
 
       card.appendChild(form);
       wrap.appendChild(card);
@@ -492,15 +498,24 @@
 
   // ---- Licence/trial banner ----
   function licenseBanner() {
-    var lic = App.license; if (!lic || lic.state === 'active') return null;
+    var lic = App.license; if (!lic) return null;
+    // A paid school is left alone until its paid period is about to run out.
+    var renewSoon = lic.state === 'active' && lic.paid && lic.daysLeft >= 0 && lic.daysLeft <= 14;
+    if (lic.state === 'active' && !renewSoon) return null;
     var trial = lic.state === 'trialing';
+    var warn = trial || renewSoon;
     var style = 'display:flex;gap:.6rem;align-items:center;justify-content:center;padding:.45rem .8rem;font-size:.85rem;font-weight:600;flex-wrap:wrap;'
-      + (trial ? 'background:#fff7e6;color:#7a5b00;border-bottom:1px solid #f0d98c' : 'background:#fde8e8;color:#8a1c1c;border-bottom:1px solid #f3b4b4');
-    var msg = trial
-      ? 'Free trial — ' + (lic.daysLeft >= 0 ? lic.daysLeft : 0) + ' day' + (lic.daysLeft === 1 ? '' : 's') + ' left'
-      : 'Your trial has ended — the app is read-only until a licence is activated.';
+      + (warn ? 'background:#fff7e6;color:#7a5b00;border-bottom:1px solid #f0d98c' : 'background:#fde8e8;color:#8a1c1c;border-bottom:1px solid #f3b4b4');
+    var n = lic.daysLeft >= 0 ? lic.daysLeft : 0;
+    var days = n + ' day' + (n === 1 ? '' : 's');
+    var msg;
+    if (trial) msg = 'Free trial — ' + days + ' left';
+    else if (renewSoon) msg = 'Your subscription ends in ' + days + ' — renew to keep editing.';
+    else if (lic.suspended) msg = 'This school’s account is suspended — view-only. Please contact Zetranova.';
+    else if (lic.trial) msg = 'Your free trial has ended — view-only until you subscribe. Your data is safe.';
+    else msg = 'Your subscription has ended — view-only until it is renewed. Your data is safe.';
     var bar = U.el('div', { style: style }, [U.el('span', { text: msg })]);
-    if (App.user && App.user.role === 'Admin') bar.appendChild(U.el('button', { class: 'btn sm', text: trial ? 'Manage subscription' : 'Activate now', onclick: function () { location.hash = '#/subscription'; } }));
+    if (App.user && App.user.role === 'Admin') bar.appendChild(U.el('button', { class: 'btn sm', text: warn ? 'Manage subscription' : 'How to subscribe', onclick: function () { location.hash = '#/subscription'; } }));
     return bar;
   }
 
@@ -622,7 +637,7 @@
   // enforces the SAME list server-side, so a colliding slug can never be
   // created in the first place either — add new reserved words to BOTH.
   var RESERVED_SLUGS = [
-    'admin', 'school', 'api', 'app', 'login', 'logout', 'signup', 'register',
+    'admin', 'school', 'api', 'app', 'login', 'logout', 'signup', 'register', 'forgot-password', 'reset-password',
     'pricing', 'about', 'contact', 'help', 'support', 'www', 'blog', 'terms',
     'privacy', 'docs', 'status', 'assets', 'static'
   ];
@@ -632,6 +647,11 @@
     if (parts[0] === 'admin') {
       return { area: 'admin', subRoute: parts[1] || null };
     }
+    if (parts[0] && parts[0].toLowerCase() === 'signup') {
+      return { area: 'signup' };
+    }
+    if (parts[0] && parts[0].toLowerCase() === 'forgot-password') { return { area: 'forgot' }; }
+    if (parts[0] && parts[0].toLowerCase() === 'reset-password')  { return { area: 'reset' }; }
     if (parts[0] && RESERVED_SLUGS.indexOf(parts[0].toLowerCase()) === -1) {
       var slug = decodeURIComponent(parts[0]);
       var sub = parts[1] || null; // 'login', 'dashboard', 'students', ... (mirrors ROUTES)
@@ -659,6 +679,12 @@
     if (r.area === 'admin') {
       App.isAdminArea = true;
       App.pendingAdminHash = r.subRoute ? ('#/' + r.subRoute) : null;
+    } else if (r.area === 'signup') {
+      App.isSignupArea = true;
+    } else if (r.area === 'forgot') {
+      App.isForgotArea = true;
+    } else if (r.area === 'reset') {
+      App.isResetArea = true;
     } else if (r.area === 'school') {
       App.schoolIdHint = r.slug;
       // Cosmetic-only label for the PRE-login screen — the real school name
@@ -734,7 +760,7 @@
     // URL-slug router when present) — the server never trusts it for anything
     // beyond finding this school's user by username; every route after login
     // is scoped purely by the signed token, never by anything the client sends.
-    var schoolInput = U.el('input', { type: 'text', value: App.schoolIdHint || '', placeholder: 'e.g. indigo-academy' });
+    var schoolInput = U.el('input', { type: 'text', value: App.schoolIdHint || '', placeholder: 'e.g. st-marys-school', autocapitalize: 'none', spellcheck: 'false' });
     var userInput = U.el('input', { type: 'text', autocomplete: 'username', placeholder: 'Username' });
     var passInput = U.el('input', { type: 'password', autocomplete: 'current-password', placeholder: 'Password' });
 
@@ -756,21 +782,410 @@
         boot();
       }).catch(function (err) {
         submitBtn.disabled = false; submitBtn.textContent = 'Sign in';
-        showError((err && err.message) || 'Incorrect username, password, or school.');
+        // 401 = the server could not match school + username + password. Say that
+        // in everyday words, naming all three since any one of them can be the typo.
+        showError(err && err.status === 401
+          ? 'We could not sign you in. Please check the school address, username and password, then try again.'
+          : ((err && err.message) || 'Something went wrong. Please try again.'));
       });
     }
 
     var form = U.el('form', { class: 'form login-form', onsubmit: doLogin });
     form.appendChild(errBox);
-    form.appendChild(field('School ID', schoolInput));
+    var schoolField = field('School address', schoolInput);
+    schoolField.appendChild(U.el('div', { class: 'help', text: 'The last part of your school’s web address, e.g. st-marys-school' }));
+    form.appendChild(schoolField);
     form.appendChild(field('Username', userInput));
     form.appendChild(field('Password', passInput));
+    form.appendChild(U.el('div', { style: 'text-align:right;margin:-.4rem 0 .6rem' }, [
+      U.el('a', { href: '/forgot-password' + (App.schoolIdHint ? '?school=' + encodeURIComponent(App.schoolIdHint) : ''), class: 'forgot-link', text: 'Forgot password?' })
+    ]));
     form.appendChild(submitBtn);
 
     card.appendChild(form);
+    // New schools: a clear, friendly way in — this is the front door of the product.
+    var trialDays = (global.License && global.License.TRIAL_DAYS) || 30;
+    card.appendChild(U.el('div', { class: 'login-alt' }, [
+      U.el('span', { text: 'New to Zetclass? ' }),
+      U.el('a', { href: '/signup', text: 'Start your free ' + trialDays + '-day trial' })
+    ]));
+    var support = supportLine();
+    card.appendChild(U.el('p', { class: 'help login-alt', text: 'Teachers, staff and parents who forgot their password: ask your school’s administrator to reset it' + (support ? '. Need help? ' + support : '.') }));
     wrap.appendChild(card);
     root.appendChild(wrap);
-    userInput.focus();
+    // Land on the first EMPTY box so a returning visitor can just start typing.
+    (schoolInput.value ? userInput : schoolInput).focus();
+  }
+
+  // ============================================================
+  // Self-service signup  (zetclass.com/signup)
+  //
+  // Deliberately plain: one short form, five answers, nothing optional.
+  //   - Labels sit ABOVE each box, with an example inside it.
+  //   - Mistakes are explained under the box in plain words, as you leave it,
+  //     not in one scary list after pressing the button.
+  //   - Phones get the number keyboard, the password has a Show button.
+  //   - The server re-checks everything (api/index.php ?r=register); this
+  //     screen's checks are only there to save the person a round trip.
+  // ============================================================
+  function supportLine() {
+    var c = global.ZETCLASS_CONTACT || {}, bits = [];
+    if (c.whatsapp) bits.push('WhatsApp ' + c.whatsapp);
+    if (c.email) bits.push(c.email);
+    return bits.join(' · ');
+  }
+  App.supportLine = supportLine;
+
+  // Mirror of the server's rules (valid_* functions in api/index.php).
+  function signupChecks(v) {
+    return {
+      school_name: function () {
+        var s = v.school_name().replace(/\s+/g, ' ').trim();
+        if (s.length < 3) return 'Please enter your school’s full name.';
+        if (!/[A-Za-zÀ-ɏ]/.test(s)) return 'The school name must contain letters.';
+        if (/[<>]/.test(s)) return 'The school name cannot contain < or >.';
+        return '';
+      },
+      contact_name: function () {
+        var s = v.contact_name().replace(/\s+/g, ' ').trim();
+        if (s.length < 2) return 'Please enter your full name.';
+        if (/[<>]/.test(s)) return 'Your name cannot contain < or >.';
+        return '';
+      },
+      email: function () {
+        var s = v.email().trim();
+        return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s) ? '' : 'Please enter a valid email address, like name@example.com.';
+      },
+      phone: function () {
+        var p = v.phone();
+        if (!p) return 'Please enter your phone number.';
+        if (p.charAt(0) !== '+') return 'Please include your country code, for example +233 24 123 4567.';
+        var d = p.replace(/\D+/g, '');
+        return (d.length >= 9 && d.length <= 15 && d.charAt(0) !== '0') ? '' : 'Please enter a valid phone number with its country code, for example +233 24 123 4567.';
+      },
+      password: function () {
+        var p = v.password();
+        if (p.length < 8) return 'Your password must be at least 8 characters.';
+        return '';
+      }
+    };
+  }
+
+  function startSignup() {
+    // Someone already signed in to a school who opens /signup: take them to
+    // their school instead of showing a form they do not need.
+    var meta = loadApiSessionMeta();
+    if (DB.isApi && meta && DB.hasApiToken() && meta.role !== 'Platform') { startApi(); return; }
+    chooseSignup();
+  }
+
+  function chooseSignup() {
+    var root = U.clear(U.$('#root'));
+    var wrap = U.el('div', { class: 'login-wrap' });
+    var card = U.el('div', { class: 'card' });
+    var trialDays = (global.License && global.License.TRIAL_DAYS) || 30;
+    card.appendChild(U.el('div', { class: 'login-badge', text: 'Z' }));
+    card.appendChild(U.el('h1', { text: 'Start your free trial' }));
+    card.appendChild(U.el('p', { class: 'muted', text: 'Set up your school in about 2 minutes. Free for ' + trialDays + ' days — no payment details needed.' }));
+
+    var alertBox = U.el('div', { class: 'login-error', role: 'alert', style: 'display:none;color:#b3261e;font-size:.85rem;margin:.4rem 0 .8rem' });
+    var form = U.el('form', { class: 'form login-form', novalidate: true });
+    form.appendChild(alertBox);
+
+    var inputs = {}, errEls = {};
+    // `control` is what goes on screen (the input itself, or the input plus a
+    // Show/Hide button); `input` is the box whose value/errors we track.
+    function addField(key, label, input, help, control) {
+      input.id = 'f-' + key; input.name = key;
+      var err = U.el('div', { class: 'field-error', id: 'err-' + key, 'aria-live': 'polite' });
+      input.setAttribute('aria-describedby', 'err-' + key);
+      inputs[key] = input; errEls[key] = err;
+      var kids = [U.el('label', { for: 'f-' + key, text: label }), control || input, err];
+      if (help) kids.push(U.el('div', { class: 'help', text: help }));
+      form.appendChild(U.el('div', { class: 'field' }, kids));
+    }
+    function setError(key, msg) {
+      errEls[key].textContent = msg || '';
+      inputs[key].classList.toggle('input-error', !!msg);
+      if (msg) inputs[key].setAttribute('aria-invalid', 'true'); else inputs[key].removeAttribute('aria-invalid');
+    }
+
+    var schoolIn = U.el('input', { type: 'text', autocomplete: 'organization', placeholder: 'e.g. St. Mary’s Basic School', maxlength: '120' });
+    var nameIn   = U.el('input', { type: 'text', autocomplete: 'name', placeholder: 'e.g. Ama Mensah', maxlength: '80' });
+    var emailIn  = U.el('input', { type: 'email', autocomplete: 'email', inputmode: 'email', placeholder: 'you@example.com', maxlength: '160', autocapitalize: 'none', spellcheck: 'false' });
+    var phoneIn  = U.el('input', { type: 'tel', autocomplete: 'tel', inputmode: 'tel', placeholder: 'e.g. 24 123 4567', maxlength: '24' });
+    // Country code: Ghana is pre-selected; the number is saved in full international form (+233…).
+    var COUNTRIES = [['+233', 'Ghana +233'], ['+234', 'Nigeria +234'], ['+228', 'Togo +228'], ['+225', 'Côte d’Ivoire +225'], ['+226', 'Burkina Faso +226'],
+      ['+232', 'Sierra Leone +232'], ['+231', 'Liberia +231'], ['+220', 'Gambia +220'], ['+221', 'Senegal +221'], ['+254', 'Kenya +254'],
+      ['+256', 'Uganda +256'], ['+255', 'Tanzania +255'], ['+27', 'South Africa +27'], ['+44', 'United Kingdom +44'], ['+1', 'USA / Canada +1'], ['other', 'Other (type the full number with +)']];
+    var countrySel = U.el('select', { 'aria-label': 'Country code', style: 'flex:0 0 auto;max-width:48%' });
+    COUNTRIES.forEach(function (c) { countrySel.appendChild(U.el('option', { value: c[0], text: c[1] })); });
+    function composedPhone() {
+      var raw = phoneIn.value.trim();
+      if (raw.charAt(0) === '+' || countrySel.value === 'other') return raw;       // already in full form
+      var digits = raw.replace(/\D+/g, '').replace(/^0+/, '');                      // 024… -> 24…
+      return digits ? countrySel.value + digits : '';
+    }
+    var passIn   = U.el('input', { type: 'password', autocomplete: 'new-password', placeholder: 'At least 8 characters', maxlength: '128' });
+
+    addField('school_name', 'School name', schoolIn);
+    addField('contact_name', 'Your full name', nameIn, 'You will be the school’s administrator.');
+    addField('email', 'Email address', emailIn);
+    addField('phone', 'Phone or WhatsApp number', phoneIn, 'Choose your country code, then type your number. Only used to help you if you get stuck.',
+      U.el('div', { style: 'display:flex;gap:.5rem' }, [countrySel, phoneIn]));
+    countrySel.addEventListener('change', function () { if (errEls.phone.textContent) setError('phone', checks.phone()); });
+    // The password box gets a Show/Hide button instead of a "type it twice" box:
+    // fewer fields, and people can simply see what they typed.
+    var toggle = U.el('button', { type: 'button', class: 'pw-toggle', text: 'Show', 'aria-label': 'Show password', onclick: function () {
+      var show = passIn.type === 'password';
+      passIn.type = show ? 'text' : 'password';
+      toggle.textContent = show ? 'Hide' : 'Show';
+      toggle.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+    } });
+    addField('password', 'Create a password', passIn, 'Use 8 or more letters and numbers you will remember.',
+      U.el('div', { class: 'pw-wrap' }, [passIn, toggle]));
+
+    // Honeypot: invisible to people, tempting to bots. Server rejects it if filled.
+    var hp = U.el('input', { type: 'text', name: 'company_website', tabindex: '-1', autocomplete: 'off', 'aria-hidden': 'true' });
+    form.appendChild(U.el('div', { class: 'hp-field', 'aria-hidden': 'true' }, [U.el('label', { text: 'Leave this empty' }), hp]));
+
+    var checks = signupChecks({
+      school_name: function () { return schoolIn.value; }, contact_name: function () { return nameIn.value; },
+      email: function () { return emailIn.value; }, phone: composedPhone, password: function () { return passIn.value; }
+    });
+    var order = ['school_name', 'contact_name', 'email', 'phone', 'password'];
+    order.forEach(function (k) {
+      inputs[k].addEventListener('blur', function () { if (inputs[k].value) setError(k, checks[k]()); });
+      // Clear a shown error as soon as the person starts fixing it.
+      inputs[k].addEventListener('input', function () { if (errEls[k].textContent) setError(k, checks[k]()); });
+    });
+
+    // Optional: start with pretend pupils/parents/staff/stock to explore. Ticked by
+    // default because an empty school is hard to judge; removing it is one click.
+    var sampleBox = U.el('input', { type: 'checkbox', id: 'f-sample', checked: true, style: 'width:auto;flex:none;margin:.2rem 0 0' });
+    form.appendChild(U.el('div', { class: 'field' }, [
+      U.el('label', { for: 'f-sample', style: 'display:flex;gap:.5rem;align-items:flex-start;justify-content:flex-start;text-align:left;font-weight:600;cursor:pointer' }, [sampleBox, U.el('span', { text: 'Start with sample data so I can explore' })]),
+      U.el('div', { class: 'help', text: 'Adds a few pretend pupils, fees, attendance, scores, stock, accounts and more so you can try every screen. Remove it in one click from your dashboard or Settings when you are ready for real records.' })
+    ]));
+
+    var btn = U.el('button', { class: 'btn gold', type: 'submit', text: 'Create my school' });
+    form.appendChild(btn);
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      alertBox.style.display = 'none';
+      var firstBad = null;
+      order.forEach(function (k) { var m = checks[k](); setError(k, m); if (m && !firstBad) firstBad = k; });
+      if (firstBad) { inputs[firstBad].focus(); return; }
+      var payload = {
+        school_name: schoolIn.value.replace(/\s+/g, ' ').trim(), contact_name: nameIn.value.replace(/\s+/g, ' ').trim(),
+        email: emailIn.value.trim(), phone: composedPhone(), password: passIn.value, company_website: hp.value
+      };
+      btn.disabled = true; btn.textContent = 'Creating your school…';
+      DB.apiRegister(payload).then(function (res) {
+        if (!sampleBox.checked || !global.SampleData) return res;
+        btn.textContent = 'Adding sample data…';
+        // A failure here must never undo the signup: the school exists either way,
+        // and sample data can be added later from Settings → Sample Data.
+        return global.SampleData.load().then(function () { res.sample_data = true; return res; }, function () { return res; });
+      }).then(function (res) {
+        showSignupWelcome(res);
+      }).catch(function (err) {
+        btn.disabled = false; btn.textContent = 'Create my school';
+        var f = err && err.body && err.body.fields, firstField = null;
+        if (f) order.forEach(function (k) { if (f[k]) { setError(k, f[k]); if (!firstField) firstField = k; } });
+        // Show the headline message unless it only repeats a field error.
+        if (!f || err.status !== 400) { alertBox.textContent = (err && err.message) || 'Something went wrong. Please try again.'; alertBox.style.display = 'block'; }
+        if (firstField) inputs[firstField].focus();
+      });
+    });
+
+    card.appendChild(form);
+    var support = supportLine();
+    card.appendChild(U.el('div', { class: 'login-alt' }, [
+      U.el('span', { text: 'Already have a school? ' }),
+      U.el('a', { href: '/', text: 'Sign in' })
+    ]));
+    if (support) card.appendChild(U.el('p', { class: 'help login-alt', text: 'Need help? ' + support }));
+    wrap.appendChild(card);
+    root.appendChild(wrap);
+    schoolIn.focus();
+  }
+
+  // The moment after signup: tell them exactly what they now have and where to
+  // find it again (the #1 thing new users lose is their school's address).
+  function showSignupWelcome(res) {
+    App.user = res.user; App.schoolId = res.school_id; App.forbiddenMessage = null;
+    App.schoolIdHint = res.school_id; App.schoolSlugLabel = res.school_name;
+    saveApiSessionMeta({ user: res.user, school_id: res.school_id, role: res.role });
+
+    var address = global.location.origin + '/' + res.school_id;
+    var root = U.clear(U.$('#root'));
+    var wrap = U.el('div', { class: 'login-wrap' });
+    var card = U.el('div', { class: 'card' });
+    card.appendChild(U.el('div', { class: 'login-badge', text: '✓' }));
+    card.appendChild(U.el('h1', { text: 'Your school is ready' }));
+    card.appendChild(U.el('p', { class: 'muted', text: res.school_name + ' is set up with a ' + res.trial_days + '-day free trial.' }));
+
+    function row(label, value) {
+      return U.el('div', { class: 'welcome-row' }, [U.el('div', { class: 'welcome-label', text: label }), U.el('div', { class: 'welcome-value', text: value })]);
+    }
+    var box = U.el('div', { class: 'welcome-box' }, [
+      row('Your school’s web address', address),
+      row('Your username', 'admin'),
+      row('Your password', 'the one you just chose'),
+      row('Free trial ends', U.fmtDate(res.trial_ends_at))
+    ]);
+    card.appendChild(box);
+    card.appendChild(U.el('p', { class: 'help', text: 'Save these details. Next time, go to your web address and sign in with the username and password above.' }));
+    if (res.sample_data) card.appendChild(U.el('p', { class: 'help', text: 'We added a few sample records in every area so you can explore. Remove them any time with the “Remove sample data” button on your dashboard.' }));
+
+    var copyText = 'Zetclass — ' + res.school_name + '\nWeb address: ' + address + '\nUsername: admin\nFree trial ends: ' + res.trial_ends_at;
+    var copyBtn = U.el('button', { class: 'btn ghost', type: 'button', text: 'Copy these details', onclick: function () {
+      var done = function () { copyBtn.textContent = 'Copied ✓'; setTimeout(function () { copyBtn.textContent = 'Copy these details'; }, 2000); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(copyText).then(done, function () { U.toast('Could not copy — please write the address down.', 'warn'); });
+      else U.toast('Could not copy — please write the address down.', 'warn');
+    } });
+    var openBtn = U.el('button', { class: 'btn gold', type: 'button', text: 'Open my school', onclick: function () {
+      try { global.history.replaceState(null, '', '/' + res.school_id); } catch (e) { /* address bar stays; app still works */ }
+      App.isSignupArea = false;
+      boot();
+    } });
+    card.appendChild(U.el('div', { class: 'welcome-actions' }, [openBtn, copyBtn]));
+    wrap.appendChild(card);
+    root.appendChild(wrap);
+    openBtn.focus();
+  }
+
+  // ============================================================
+  // Forgot password  (zetclass.com/forgot-password) and
+  // Choose a new password  (zetclass.com/reset-password?school=...&token=...)
+  //
+  // School Administrators get a one-hour, single-use link by email (sent to the
+  // address the school signed up with). Everyone else — teachers, staff, parents —
+  // asks their own school Administrator, who can reset them in Settings > Access
+  // Control. The server answers "forgot" the same way whether or not the account
+  // exists, so these screens cannot be used to find out who has an account.
+  // ============================================================
+  function queryParam(name) {
+    try { return new URLSearchParams(global.location.search).get(name) || ''; } catch (e) { return ''; }
+  }
+
+  function chooseForgot() {
+    var root = U.clear(U.$('#root'));
+    var wrap = U.el('div', { class: 'login-wrap' });
+    var card = U.el('div', { class: 'card' });
+    card.appendChild(U.el('div', { class: 'login-badge', text: '?' }));
+    card.appendChild(U.el('h1', { text: 'Forgot your password?' }));
+    card.appendChild(U.el('p', { class: 'muted', text: 'School administrators: we will email a reset link to the address your school signed up with.' }));
+
+    var alertBox = U.el('div', { class: 'login-error', role: 'alert', style: 'display:none;color:#b3261e;font-size:.85rem;margin:.4rem 0 .8rem' });
+    var schoolIn = U.el('input', { type: 'text', id: 'f-school', value: queryParam('school') || App.schoolIdHint || '', placeholder: 'e.g. st-marys-school', autocapitalize: 'none', spellcheck: 'false' });
+    var userIn = U.el('input', { type: 'text', id: 'f-user', value: queryParam('school') || App.schoolIdHint ? 'admin' : '', placeholder: 'admin', autocapitalize: 'none', spellcheck: 'false', autocomplete: 'username' });
+    var btn = U.el('button', { class: 'btn gold', type: 'submit', text: 'Send me a reset link' });
+    var form = U.el('form', { class: 'form login-form', novalidate: true });
+    form.appendChild(alertBox);
+    form.appendChild(U.el('div', { class: 'field' }, [U.el('label', { for: 'f-school', text: 'School address' }), schoolIn,
+      U.el('div', { class: 'help', text: 'The last part of your school’s web address, e.g. st-marys-school' })]));
+    form.appendChild(U.el('div', { class: 'field' }, [U.el('label', { for: 'f-user', text: 'Username' }), userIn,
+      U.el('div', { class: 'help', text: 'Administrators usually use “admin”.' })]));
+    form.appendChild(btn);
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      alertBox.style.display = 'none';
+      var school = schoolIn.value.trim().toLowerCase(), user = userIn.value.trim();
+      if (!school || !user) { alertBox.textContent = 'Please enter your school address and username.'; alertBox.style.display = 'block'; (school ? userIn : schoolIn).focus(); return; }
+      btn.disabled = true; btn.textContent = 'Sending…';
+      DB.apiForgotPassword(school, user).then(function (res) {
+        showForgotSent(school, res && res.message);
+      }).catch(function (err) {
+        btn.disabled = false; btn.textContent = 'Send me a reset link';
+        alertBox.textContent = (err && err.message) || 'Something went wrong. Please try again.'; alertBox.style.display = 'block';
+      });
+    });
+
+    card.appendChild(form);
+    card.appendChild(U.el('div', { class: 'login-alt' }, [U.el('a', { href: schoolIn.value ? '/' + encodeURIComponent(schoolIn.value) : '/', text: '← Back to sign in' })]));
+    card.appendChild(U.el('p', { class: 'help login-alt', text: 'Teachers, staff and parents: ask your school’s administrator to reset your password (Settings → Access Control).' }));
+    wrap.appendChild(card);
+    root.appendChild(wrap);
+    (schoolIn.value ? userIn : schoolIn).focus();
+  }
+
+  function showForgotSent(school, message) {
+    var root = U.clear(U.$('#root'));
+    var wrap = U.el('div', { class: 'login-wrap' });
+    var card = U.el('div', { class: 'card' });
+    var support = supportLine();
+    card.appendChild(U.el('div', { class: 'login-badge', text: '✉' }));
+    card.appendChild(U.el('h1', { text: 'Check your email' }));
+    card.appendChild(U.el('p', { class: 'muted', text: message || 'If that is a school Administrator account, a reset link has been sent to the school’s registered email address.' }));
+    card.appendChild(U.el('ul', { class: 'start-steps', style: 'list-style:disc;text-align:left' }, [
+      U.el('li', { text: 'The link works once and lasts one hour.' }),
+      U.el('li', { text: 'Not there after a few minutes? Look in Spam or Junk.' }),
+      U.el('li', { text: 'No email at all? ' + (support ? 'Contact us — ' + support + ' — and we will verify your school and help you in.' : 'Contact Zetranova support and we will verify your school and help you in.') })
+    ]));
+    card.appendChild(U.el('div', { class: 'welcome-actions' }, [U.el('a', { class: 'btn gold', href: '/' + encodeURIComponent(school), text: 'Back to sign in' })]));
+    wrap.appendChild(card);
+    root.appendChild(wrap);
+  }
+
+  function chooseReset() {
+    var school = queryParam('school').trim().toLowerCase();
+    var token = queryParam('token').trim();
+    // Take the one-time token out of the address bar (and browser history) right away.
+    try { global.history.replaceState(null, '', '/reset-password'); } catch (e) { /* not critical */ }
+
+    var root = U.clear(U.$('#root'));
+    var wrap = U.el('div', { class: 'login-wrap' });
+    var card = U.el('div', { class: 'card' });
+    card.appendChild(U.el('div', { class: 'login-badge', text: '🔑' }));
+    card.appendChild(U.el('h1', { text: 'Choose a new password' }));
+    if (!school || !/^[0-9a-f]{64}$/.test(token)) {
+      card.appendChild(U.el('p', { class: 'muted', text: 'This link is incomplete. Please open the link in your email again, or ask for a new one.' }));
+      card.appendChild(U.el('div', { class: 'welcome-actions' }, [U.el('a', { class: 'btn gold', href: '/forgot-password', text: 'Ask for a new link' })]));
+      wrap.appendChild(card); root.appendChild(wrap); return;
+    }
+    card.appendChild(U.el('p', { class: 'muted', text: 'For the school “' + school + '”. Pick something you will remember.' }));
+
+    var alertBox = U.el('div', { class: 'login-error', role: 'alert', style: 'display:none;color:#b3261e;font-size:.85rem;margin:.4rem 0 .8rem' });
+    var passIn = U.el('input', { type: 'password', id: 'f-newpass', autocomplete: 'new-password', placeholder: 'At least 8 characters', maxlength: '128' });
+    var err = U.el('div', { class: 'field-error', 'aria-live': 'polite' });
+    var toggle = U.el('button', { type: 'button', class: 'pw-toggle', text: 'Show', 'aria-label': 'Show password', onclick: function () {
+      var show = passIn.type === 'password'; passIn.type = show ? 'text' : 'password';
+      toggle.textContent = show ? 'Hide' : 'Show'; toggle.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+    } });
+    var btn = U.el('button', { class: 'btn gold', type: 'submit', text: 'Save new password' });
+    var form = U.el('form', { class: 'form login-form', novalidate: true });
+    form.appendChild(alertBox);
+    form.appendChild(U.el('div', { class: 'field' }, [U.el('label', { for: 'f-newpass', text: 'New password' }), U.el('div', { class: 'pw-wrap' }, [passIn, toggle]), err,
+      U.el('div', { class: 'help', text: 'Use 8 or more letters and numbers you will remember.' })]));
+    form.appendChild(btn);
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      alertBox.style.display = 'none'; err.textContent = ''; passIn.classList.remove('input-error');
+      if (passIn.value.length < 8) { err.textContent = 'Your password must be at least 8 characters.'; passIn.classList.add('input-error'); passIn.focus(); return; }
+      btn.disabled = true; btn.textContent = 'Saving…';
+      DB.apiResetPassword(school, token, passIn.value).then(function () {
+        U.clear(card);
+        card.appendChild(U.el('div', { class: 'login-badge', text: '✓' }));
+        card.appendChild(U.el('h1', { text: 'Password changed' }));
+        card.appendChild(U.el('p', { class: 'muted', text: 'You can sign in with your new password now.' }));
+        card.appendChild(U.el('div', { class: 'welcome-actions' }, [U.el('a', { class: 'btn gold', href: '/' + encodeURIComponent(school), text: 'Go to sign in' })]));
+      }).catch(function (e2) {
+        btn.disabled = false; btn.textContent = 'Save new password';
+        var f = e2 && e2.body && e2.body.fields;
+        if (f && f.password) { err.textContent = f.password; passIn.classList.add('input-error'); passIn.focus(); return; }
+        alertBox.textContent = (e2 && e2.message) || 'Something went wrong. Please try again.'; alertBox.style.display = 'block';
+        if (e2 && e2.status === 400) alertBox.appendChild(U.el('div', {}, [U.el('a', { href: '/forgot-password?school=' + encodeURIComponent(school), text: 'Ask for a new link' })]));
+      });
+    });
+    card.appendChild(form);
+    wrap.appendChild(card);
+    root.appendChild(wrap);
+    passIn.focus();
   }
 
   // ---- Platform super-admin area (/admin/...) ----
@@ -871,6 +1286,9 @@
   applyPathRoute(); // must run before start()/startApi()/startAdmin() below
   function start() {
     if (App.isAdminArea) { startAdmin(); return; }
+    if (App.isSignupArea) { startSignup(); return; }
+    if (App.isForgotArea) { chooseForgot(); return; }
+    if (App.isResetArea) { chooseReset(); return; }
     if (DB.isApi) { startApi(); return; }
     App.refresh().then(function () {
       var s = loadSession();
@@ -891,6 +1309,16 @@
   // token surfaces there as a 401 and onUnauthorized routes back to login.
   function startApi() {
     var meta = loadApiSessionMeta();
+    // The address bar names a school (zetclass.com/<school>) but the saved sign-in
+    // belongs to a different school (or to the developer console): never show
+    // school A's data under school B's address. Drop that sign-in and ask for the
+    // login of the school in the address. (Only the pre-selected address counts;
+    // the plain home page keeps whatever session the browser already has.)
+    if (meta && DB.hasApiToken() && App.schoolIdHint && meta.school_id !== App.schoolIdHint) {
+      meta = null;
+      clearApiSessionMeta();
+      DB.apiLogout();
+    }
     if (meta && DB.hasApiToken()) {
       App.user = meta.user; App.schoolId = meta.school_id;
       App.impersonating = !!meta.imp; App.impExpiresAt = meta.imp_expires_at || null;

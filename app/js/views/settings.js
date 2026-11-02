@@ -11,7 +11,7 @@
   var el = U.el;
 
   var TABS = ['Profile', 'Academic', 'Classes & Subjects', 'Grading', 'Fees',
-    'Inventory', 'Report Templates', 'Identity', 'Admission Form', 'Roles', 'Access Control', 'Messages & Labels', 'Data', 'Demo Data'];
+    'Inventory', 'Report Templates', 'Identity', 'Admission Form', 'Roles', 'Access Control', 'Messages & Labels', 'Data', 'Sample Data'];
 
   function render(container) {
     U.clear(container);
@@ -21,6 +21,7 @@
     var tabsBar = el('div', { class: 'tabs' });
     var panel = el('div', { id: 'settings-panel' });
     var active = 'Profile';
+    try { var want = global.sessionStorage.getItem('zc-settings-tab'); if (want && TABS.indexOf(want) >= 0) { active = want; global.sessionStorage.removeItem('zc-settings-tab'); } } catch (e) { /* opens on Profile */ }
     TABS.forEach(function (t) {
       var b = el('button', { text: t, onclick: function () { active = t; draw(); } });
       b._tab = t; tabsBar.appendChild(b);
@@ -36,7 +37,7 @@
         'Grading': tabGrading, 'Fees': tabFees, 'Inventory': tabInventory,
         'Report Templates': tabTemplates, 'Identity': tabIdentity, 'Admission Form': tabAdmission,
         'Roles': tabRoles, 'Access Control': tabAccess,
-        'Messages & Labels': tabMessages, 'Data': tabData, 'Demo Data': tabDemoData
+        'Messages & Labels': tabMessages, 'Data': tabData, 'Sample Data': tabDemoData
       }[active])(panel);
     }
     draw();
@@ -911,26 +912,19 @@
     panel.appendChild(card('Data Management', body));
   }
 
-  /* ---------------- Demo Data (testing only — never touches real data) ---------------- */
-  // Two independent toggles, per how the seeded demo dataset is used:
-  //   1. Demo Login Accounts — enable/disable sign-in for the 5 seeded demo
-  //      users (username/123). The Admin one can never be disabled here, so
-  //      an Admin can never lock themselves out of this very screen.
-  //   2. Demo Sample Data — clear/restore the sample students, staff and
-  //      inventory (all tagged is_demo: true at seed time). Clearing only
-  //      ever removes is_demo records; anything a real school has since
-  //      added is untagged and is never touched by either action.
-  var DEMO_DATA_COLLECTIONS = ['students', 'parents', 'staff', 'inventoryItems', 'inventoryStock'];
-
+  /* ---------------- Sample Data (explore with pretend records; choose what to remove or add back) ---------------- */
+  // The records and the add/remove rules live in js/sample-data.js (global.SampleData).
   function tabDemoData(panel) {
-    panel.appendChild(el('div', { class: 'note', text: 'For testing only. Nothing here ever affects a real student, staff, or inventory record you have added yourself.' }));
-    panel.appendChild(card('Demo Login Accounts', demoLoginBody()));
-    panel.appendChild(card('Demo Sample Data', demoSampleDataBody()));
+    DB.all('users').then(function (users) {
+      panel.appendChild(card('Sample data', sampleDataBody()));
+      // The five shared demo logins only exist in training/demo copies of the app.
+      if (users.some(function (u) { return u.is_demo; })) panel.appendChild(card('Demo login accounts', demoLoginBody()));
+    });
   }
 
   function demoLoginBody() {
     var wrap = el('div');
-    wrap.appendChild(el('p', { class: 'muted', text: 'Five seeded accounts (Admin, Director, Teacher, Other staff, Parent — password "123") let anyone explore every role before real staff have their own logins.' }));
+    wrap.appendChild(el('p', { class: 'muted', text: 'Five seeded accounts (Admin, Director, Teacher, Other staff, Parent — password "123") let anyone explore every role. Training copies only: turn these off before real staff use the app.' }));
     var status = el('div', { class: 'help', style: 'margin-bottom:.5rem' });
     var btnRow = el('div', { class: 'btn-row' });
     wrap.appendChild(status); wrap.appendChild(btnRow);
@@ -961,66 +955,62 @@
     return wrap;
   }
 
-  function demoSampleDataBody() {
+  function sampleDataBody() {
+    var SD = global.SampleData;
     var wrap = el('div');
-    wrap.appendChild(el('p', { class: 'muted', text: 'Sample students, staff and inventory pre-loaded so every screen has something to look at while testing. Clearing removes only these tagged demo records; restoring adds a fresh set back.' }));
-    var status = el('div', { class: 'help', style: 'margin-bottom:.5rem' });
+    wrap.appendChild(el('p', { text: 'Sample data is a few pretend records in every area — pupils, fees, attendance, scores, stock, accounts and more — so you can try every screen while you learn Zetclass.' }));
+    wrap.appendChild(el('p', { class: 'muted', text: 'Tick the groups you want, then press Remove or Add. Only sample records are removed — anything you typed in yourself stays.' }));
+    var list = el('div', { style: 'margin:.6rem 0' });
+    var status = el('div', { style: 'font-weight:600;margin:.4rem 0' });
     var btnRow = el('div', { class: 'btn-row' });
-    wrap.appendChild(status); wrap.appendChild(btnRow);
+    wrap.appendChild(list); wrap.appendChild(status); wrap.appendChild(btnRow);
+    var boxes = {};
     refresh();
 
-    function demoCounts() {
-      return Promise.all(DEMO_DATA_COLLECTIONS.map(function (c) { return DB.all(c); })).then(function (all) {
-        var n = {}; DEMO_DATA_COLLECTIONS.forEach(function (c, i) { n[c] = all[i].filter(function (x) { return x.is_demo; }).length; });
-        return n;
-      });
-    }
-
+    function chosen() { return SD.PACKS.filter(function (p) { return boxes[p.id] && boxes[p.id].checked; }).map(function (p) { return p.id; }); }
     function refresh() {
-      demoCounts().then(function (n) {
-        var hasAny = Object.keys(n).some(function (k) { return n[k] > 0; });
-        status.textContent = n.students + ' demo students, ' + n.staff + ' demo staff, ' + n.inventoryItems + ' demo inventory items currently loaded.';
+      SD.counts().then(function (c) {
+        var keep = {}; Object.keys(boxes).forEach(function (id) { keep[id] = boxes[id].checked; });
+        U.clear(list); boxes = {};
+        SD.PACKS.forEach(function (p) {
+          var n = c.byPack[p.id], on = n > 0;
+          var box = el('input', { type: 'checkbox', id: 'sd-' + p.id, style: 'width:auto;flex:none;margin:.25rem 0 0' });
+          box.checked = !!keep[p.id]; boxes[p.id] = box;
+          list.appendChild(el('label', { for: 'sd-' + p.id, style: 'display:flex;gap:.6rem;align-items:flex-start;padding:.45rem 0;border-bottom:1px solid var(--line);cursor:pointer' }, [
+            box,
+            el('span', { style: 'flex:1' }, [el('span', { style: 'font-weight:600', text: p.label }), el('div', { class: 'help', text: p.desc })]),
+            el('span', { class: 'tag', style: 'background:' + (on ? '#0f5e5e' : '#6b7280') + ';color:#fff;white-space:nowrap', text: on ? 'On · ' + n + ' records' : 'Not added' })
+          ]));
+        });
+        status.textContent = c.total > 0 ? 'Sample data is on in ' + SD.PACKS.filter(function (p) { return c.byPack[p.id] > 0; }).length + ' of ' + SD.PACKS.length + ' groups.' : 'No sample data in your school. Everything you see is yours.';
         U.clear(btnRow);
-        btnRow.appendChild(el('button', { class: 'btn gold', text: 'Restore demo data', onclick: function () { restoreDemo(hasAny); } }));
-        btnRow.appendChild(el('button', { class: 'btn danger', text: 'Clear demo data', disabled: !hasAny, onclick: clearDemo }));
+        btnRow.appendChild(el('button', { class: 'btn ghost', text: 'Select all', onclick: function () { Object.keys(boxes).forEach(function (id) { boxes[id].checked = true; }); } }));
+        btnRow.appendChild(el('button', { class: 'btn ghost', text: 'Select none', onclick: function () { Object.keys(boxes).forEach(function (id) { boxes[id].checked = false; }); } }));
+        btnRow.appendChild(el('button', { class: 'btn danger', text: 'Remove selected', onclick: function () { removeSelected(c); } }));
+        btnRow.appendChild(el('button', { class: 'btn gold', text: 'Add selected', onclick: addSelected }));
       });
     }
-
-    function clearDemo() {
-      U.confirm('This removes all sample demo students, staff and inventory. Your real school data is never touched. Continue?', function () {
-        Promise.all(DEMO_DATA_COLLECTIONS.map(function (c) {
-          return DB.all(c).then(function (arr) { return DB.replaceAll(c, arr.filter(function (x) { return !x.is_demo; })); });
-        })).then(function () {
-          App.refresh().then(function () { U.toast('Demo sample data cleared.'); refresh(); });
+    function removeSelected(c) {
+      var ids = chosen().filter(function (id) { return c.byPack[id] > 0; });
+      if (!ids.length) { U.toast('Tick at least one group that is currently on.', 'warn'); return; }
+      var names = ids.map(function (id) { return '• ' + SD.packById(id).label; }).join('\n');
+      var extra = ids.indexOf('pupils') >= 0 ? '\n\nRemoving the sample pupils also removes anything recorded against them (attendance, scores, fees, payments).' : '';
+      U.confirm('Remove these sample groups?\n\n' + names + extra + '\n\nRecords you added yourself are NOT touched.', function () {
+        SD.remove(ids).then(function () { return App.refresh(); }).then(function () { U.toast('Sample data removed.'); refresh(); })
+          .catch(function () { U.toast('Could not remove the sample data. Please try again.', 'err'); });
+      });
+    }
+    function addSelected() {
+      var ids = chosen();
+      if (!ids.length) { U.toast('Tick at least one group to add.', 'warn'); return; }
+      SD.load(ids).then(function (res) {
+        return App.refresh().then(function () {
+          var msg = res.added.length ? 'Added: ' + res.added.map(function (id) { return SD.packById(id).label; }).join(', ') + '.' : 'Nothing new was added.';
+          if (res.skipped.length) msg += ' Skipped: ' + res.skipped.map(function (s) { return SD.packById(s.id).label + ' (' + s.reason + ')'; }).join('; ') + '.';
+          U.toast(msg, res.added.length ? undefined : 'warn'); refresh();
         });
-      });
+      }).catch(function () { U.toast('Could not add the sample data. Please try again.', 'err'); });
     }
-
-    function restoreDemo(hasAny) {
-      if (hasAny) { U.toast('Demo data is already loaded. Clear it first, then restore, to get a fresh set.', 'err'); return; }
-      U.confirm('This adds a fresh set of demo students, staff and inventory. Continue?', function () {
-        var G = global.SMS_DEMO_GENERATORS;
-        DB.all('students').then(function (existing) {
-          var maxSeq = existing.reduce(function (m, s) {
-            var n = parseInt(String(s.student_id || '').replace(/\D/g, ''), 10);
-            return isNaN(n) ? m : Math.max(m, n);
-          }, 0);
-          var roster = G.buildRoster(maxSeq);
-          var staffExtra = G.buildStaffExtra();
-          var inv = G.buildInventory();
-          return Promise.all([
-            DB.replaceAll('students', existing.concat(roster.students)),
-            DB.all('parents').then(function (arr) { return DB.replaceAll('parents', arr.concat(roster.parents)); }),
-            DB.all('staff').then(function (arr) { return DB.replaceAll('staff', arr.concat(staffExtra)); }),
-            DB.all('inventoryItems').then(function (arr) { return DB.replaceAll('inventoryItems', arr.concat(inv.items)); }),
-            DB.all('inventoryStock').then(function (arr) { return DB.replaceAll('inventoryStock', arr.concat(inv.stock)); })
-          ]);
-        }).then(function () {
-          App.refresh().then(function () { U.toast('Demo sample data restored.'); refresh(); });
-        });
-      });
-    }
-
     return wrap;
   }
 

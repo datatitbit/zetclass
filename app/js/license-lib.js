@@ -104,7 +104,10 @@
     if (DB.isApi && DB.subscriptionState) {
       return DB.subscriptionState().then(function (s) {
         if (!s || s.source !== 'server') { return localResolve(); }
-        var onTrial = !!s.trial_ends_at;
+        // A paid period (paid_until) outranks any leftover trial date — mirrors
+        // subscription_state() in api/index.php.
+        var paid = !!s.paid_until;
+        var onTrial = !paid && !!s.trial_ends_at;
         // A suspended school is surfaced as locked/read-only, same as expired —
         // it should never silently look like a healthy paid account.
         var state = (s.state === 'suspended') ? 'expired' : s.state;
@@ -112,11 +115,13 @@
           state:     state,
           plan:      s.plan || null,
           school:    s.name || '',
-          expires:   s.trial_ends_at || '',
-          // No trial running means nothing is counting down; a large number
-          // keeps "days remaining" displays harmless rather than showing 0.
+          expires:   s.paid_until || s.trial_ends_at || '',
+          // Nothing counting down (no trial, no paid end date) means a large
+          // number keeps "days remaining" displays harmless rather than showing 0.
           daysLeft:  (s.days_left === null || s.days_left === undefined) ? 9999 : s.days_left,
           trial:     onTrial,
+          paid:      paid,
+          suspended: s.state === 'suspended',
           source:    'server'
         });
       }).catch(function () { return localResolve(); });

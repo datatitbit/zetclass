@@ -1,0 +1,9 @@
+# Secrets and server-only settings — never commit
+app/api/config.local.php
+*.sqlite
+*.sqlite-journal
+.env
+# Local tooling
+.claude/
+node_modules/
+dist/

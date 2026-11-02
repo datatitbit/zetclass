@@ -86,6 +86,12 @@
     d.meta.seq[kind] = (d.meta.seq[kind] || 0) + 1; this._write(d);
     return Promise.resolve(d.meta.seq[kind]);
   };
+  // Raise a counter to at least n (never lowers it).
+  LocalAdapter.prototype.bumpSeq = function (kind, n) {
+    var d = this._read(); d.meta = d.meta || { seq: {} };
+    d.meta.seq[kind] = Math.max(d.meta.seq[kind] || 0, n); this._write(d);
+    return Promise.resolve(d.meta.seq[kind]);
+  };
 
   /* ---------------- ApiAdapter (PHP/MySQL) ---------------- */
   // Bearer token persistence: kept separate from the app-level session (app.js
@@ -133,16 +139,26 @@
           var msg = (data && data.error) ? data.error : ('API request failed (' + r.status + '): ' + path);
           var err = new Error(msg);
           err.status = r.status; err.body = data;
+          // Sign-in and signup calls (noAuth) report their own problems next to
+          // the form, so a wrong password must NOT look like an expired session
+          // or wipe what the person typed.
+          var isAuthCall = !!opts.noAuth;
+          var roleDenied = !!(data && data.code === 'role');
+          var cfgHooks = global.DB_CONFIG || {};
           // 401 = token missing/expired/invalid -> the session is dead, force re-login.
-          // 403 = valid session but the school's subscription is inactive -> surface
-          // the server's own message rather than a generic one.
-          if (r.status === 401 && global.DB_CONFIG && typeof global.DB_CONFIG.onUnauthorized === 'function') {
-            global.DB_CONFIG.onUnauthorized();
-          } else if (r.status === 403 && global.DB_CONFIG && typeof global.DB_CONFIG.onForbidden === 'function') {
-            global.DB_CONFIG.onForbidden(msg);
-          } else if (global.U && global.U.toast) {
-            global.U.toast('Network/API error — check your connection.', 'err');
+          // 403 = valid session but the school's subscription is inactive/ended -> surface
+          // the server's own message as a banner (a role refusal is just a small notice).
+          if (r.status === 401 && !isAuthCall && typeof cfgHooks.onUnauthorized === 'function') {
+            cfgHooks.onUnauthorized();
+          } else if (r.status === 403 && !isAuthCall && !roleDenied && typeof cfgHooks.onForbidden === 'function') {
+            cfgHooks.onForbidden(msg);
+          } else if (r.status === 403 && roleDenied && global.U && global.U.toast) {
+            global.U.toast(msg, 'warn');
+          } else if (r.status >= 500 && global.U && global.U.toast) {
+            global.U.toast('The service had a problem. Please try again in a moment.', 'err');
           }
+          // Other 4xx (typos, duplicates, "too many tries"): no popup — the
+          // screen that asked shows err.message beside the form.
           throw err;
         }
         return data;
@@ -162,6 +178,7 @@
   ApiAdapter.prototype.getSingleton = function (name) { return this._req('GET', 'singleton/' + name); };
   ApiAdapter.prototype.setSingleton = function (name, obj) { return this._req('PUT', 'singleton/' + name, obj); };
   ApiAdapter.prototype.nextSeq = function (kind) { return this._req('POST', 'seq/' + kind, {}); };
+  ApiAdapter.prototype.bumpSeq = function (kind, n) { return this._req('POST', 'seq/' + kind, { at_least: n }); };
   ApiAdapter.prototype.exportAll = function () { return this._req('GET', 'export'); };
   ApiAdapter.prototype.importAll = function (data) { return this._req('PUT', 'import', data); };
   ApiAdapter.prototype.reset = function () { return this._req('POST', 'reset', {}); };
@@ -176,6 +193,22 @@
     return this._req('POST', 'auth/login', { username: username, password: password, school_id: schoolId || undefined }, { noAuth: true })
       .then(function (res) { self.token = res.token; saveApiToken(res.token); return res; });
   };
+  // Self-service signup. The server creates the school + its Admin login and
+  // answers with a ready session token, so the new school lands straight in
+  // the app. Field-level problems come back as err.body.fields = {field: msg}.
+  ApiAdapter.prototype.register = function (form) {
+    var self = this;
+    return this._req('POST', 'register', form, { noAuth: true })
+      .then(function (res) { self.token = res.token; saveApiToken(res.token); return res; });
+  };
+  // Forgot password (school Administrators). The server always answers the same way,
+  // so this reveals nothing about which schools or usernames exist.
+  ApiAdapter.prototype.forgotPassword = function (schoolId, username) {
+    return this._req('POST', 'auth/forgot', { school_id: schoolId, username: username }, { noAuth: true });
+  };
+  ApiAdapter.prototype.resetPassword = function (schoolId, token, password) {
+    return this._req('POST', 'auth/reset', { school_id: schoolId, token: token, password: password }, { noAuth: true });
+  };
   ApiAdapter.prototype.logout = function () { this.token = null; saveApiToken(null); return Promise.resolve(true); };
   ApiAdapter.prototype.hasToken = function () { return !!this.token; };
 
@@ -183,8 +216,24 @@
   // The server independently re-checks claims.plat on every one of these; the
   // client never decides who is allowed to call them, it just relays 403s.
   ApiAdapter.prototype.platformSchoolsList = function () { return this._req('GET', 'schools/list'); };
-  ApiAdapter.prototype.platformProvision = function (schoolId, name) {
-    return this._req('POST', 'provision', { school_id: schoolId || undefined, name: name });
+  // details: { school_id?, name, email?, phone?, contact_name?, demo? } — the
+  // answer includes a one-time temp_password for the new school's Admin.
+  ApiAdapter.prototype.platformProvision = function (details) {
+    return this._req('POST', 'provision', details);
+  };
+  // Record a payment / renewal: { school_id, plan, days | paid_until, amount?, note? }.
+  ApiAdapter.prototype.platformPayment = function (p) { return this._req('POST', 'platform/payment', p); };
+  ApiAdapter.prototype.platformDelete = function (schoolId, confirm) { return this._req('POST', 'platform/delete', { school_id: schoolId, confirm: confirm }); };
+  ApiAdapter.prototype.platformRequests = function () { return this._req('GET', 'platform/requests'); };
+  ApiAdapter.prototype.platformDismissRequest = function (id) { return this._req('POST', 'platform/request', { id: id }); };
+  ApiAdapter.prototype.platformNote = function (schoolId, note) { return this._req('POST', 'platform/note', { school_id: schoolId, note: note }); };
+  // Correct a school's name / contact person / email / phone: { name?, contact_name?, email?, phone? }.
+  ApiAdapter.prototype.platformDetails = function (schoolId, d) {
+    return this._req('POST', 'platform/details', Object.assign({ school_id: schoolId }, d));
+  };
+  // One-time temporary password for a user (default: the school's first Admin).
+  ApiAdapter.prototype.platformResetPassword = function (schoolId, userId) {
+    return this._req('POST', 'platform/password', { school_id: schoolId, user_id: userId || undefined });
   };
   ApiAdapter.prototype.platformSuspend = function (schoolId, status) {
     return this._req('POST', 'suspend', { school_id: schoolId, status: status });
@@ -242,6 +291,7 @@
     singleton: function (n) { return adapter.getSingleton(n); },
     setSingleton: function (n, o) { return adapter.setSingleton(n, o); },
     nextSeq: function (k) { return adapter.nextSeq(k); },
+    bumpSeq: function (k, n) { return adapter.bumpSeq(k, n); },
     exportAll: function () { return adapter.exportAll(); },
     importAll: function (d) { return adapter.importAll(d); },
     reset: function () { return adapter.reset(); },
@@ -250,6 +300,18 @@
     apiLogin: function (username, password, schoolId) {
       if (!DB.isApi) return Promise.reject(new Error('apiLogin is only available when DB_CONFIG.useApi is true.'));
       return adapter.login(username, password, schoolId);
+    },
+    apiRegister: function (form) {
+      if (!DB.isApi) return Promise.reject(new Error('Signup is only available on the live service.'));
+      return adapter.register(form);
+    },
+    apiForgotPassword: function (schoolId, username) {
+      if (!DB.isApi) return Promise.reject(new Error('Password reset is only available on the live service.'));
+      return adapter.forgotPassword(schoolId, username);
+    },
+    apiResetPassword: function (schoolId, token, password) {
+      if (!DB.isApi) return Promise.reject(new Error('Password reset is only available on the live service.'));
+      return adapter.resetPassword(schoolId, token, password);
     },
     apiLogout: function () { return DB.isApi ? adapter.logout() : Promise.resolve(true); },
     hasApiToken: function () { return DB.isApi && adapter.hasToken(); },
@@ -264,7 +326,14 @@
 
     // ---- Platform (super-admin) routes — API mode only; reject in local mode. ----
     platformSchoolsList: function () { return DB.isApi ? adapter.platformSchoolsList() : Promise.reject(new Error('Platform routes require API mode.')); },
-    platformProvision: function (schoolId, name) { return DB.isApi ? adapter.platformProvision(schoolId, name) : Promise.reject(new Error('Platform routes require API mode.')); },
+    platformProvision: function (details) { return DB.isApi ? adapter.platformProvision(details) : Promise.reject(new Error('Platform routes require API mode.')); },
+    platformPayment: function (p) { return DB.isApi ? adapter.platformPayment(p) : Promise.reject(new Error('Platform routes require API mode.')); },
+    platformDelete: function (schoolId, confirm) { return DB.isApi ? adapter.platformDelete(schoolId, confirm) : Promise.reject(new Error('Platform routes require API mode.')); },
+    platformRequests: function () { return DB.isApi ? adapter.platformRequests() : Promise.reject(new Error('Platform routes require API mode.')); },
+    platformDismissRequest: function (id) { return DB.isApi ? adapter.platformDismissRequest(id) : Promise.reject(new Error('Platform routes require API mode.')); },
+    platformNote: function (schoolId, note) { return DB.isApi ? adapter.platformNote(schoolId, note) : Promise.reject(new Error('Platform routes require API mode.')); },
+    platformDetails: function (schoolId, d) { return DB.isApi ? adapter.platformDetails(schoolId, d) : Promise.reject(new Error('Platform routes require API mode.')); },
+    platformResetPassword: function (schoolId, userId) { return DB.isApi ? adapter.platformResetPassword(schoolId, userId) : Promise.reject(new Error('Platform routes require API mode.')); },
     platformSuspend: function (schoolId, status) { return DB.isApi ? adapter.platformSuspend(schoolId, status) : Promise.reject(new Error('Platform routes require API mode.')); },
     platformReset: function (schoolId) { return DB.isApi ? adapter.platformReset(schoolId) : Promise.reject(new Error('Platform routes require API mode.')); },
     platformExtendTrial: function (schoolId, days) { return DB.isApi ? adapter.platformExtendTrial(schoolId, days) : Promise.reject(new Error('Platform routes require API mode.')); },

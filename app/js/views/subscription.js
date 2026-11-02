@@ -23,7 +23,8 @@
     // the owner from the platform dashboard (/admin) and stored server-side.
 
     L.resolve().then(function (st) {
-      var badge = st.state === 'active' ? ['Active', '#0f5e5e'] : (st.state === 'trialing' ? ['Free trial', '#c99a2e'] : ['Expired', '#b91c1c']);
+      var badge = st.suspended ? ['Suspended', '#b91c1c'] : (st.state === 'active' ? ['Active', '#0f5e5e'] : (st.state === 'trialing' ? ['Free trial', '#8a6410'] : ['Ended', '#b91c1c']));
+      var hasEnd = !!st.expires;
       var s = el('div', { class: 'card' }, [
         el('div', { class: 'flex', style: 'justify-content:space-between;flex-wrap:wrap;gap:.5rem;align-items:center' }, [
           el('h3', { text: 'Status' }),
@@ -31,12 +32,14 @@
         ]),
         el('div', { class: 'grid cols-3' }, [
           info('Plan', st.planLabel || '—'),
-          info(st.trial ? 'Trial ends' : 'Renews', st.expires || '—'),
-          info('Days remaining', (st.daysLeft >= 0 ? st.daysLeft : 0) + '')
+          info(st.trial ? 'Free trial ends' : (st.paid ? 'Paid until' : 'Renews'), st.expires ? U.fmtDate(st.expires) : '—'),
+          info('Days remaining', hasEnd ? ((st.daysLeft >= 0 ? st.daysLeft : 0) + '') : '—')
         ])
       ]);
       if (st.school) s.appendChild(el('div', { class: 'help', text: 'Licensed to: ' + st.school }));
-      if (st.state === 'expired') s.appendChild(el('div', { class: 'note', style: 'background:#fde8e8;color:#8a1c1c', text: 'The app is currently read-only. Enter a valid licence key below to unlock editing. Your data is safe and can still be viewed and exported.' }));
+      if (st.state === 'expired') s.appendChild(el('div', { class: 'note', style: 'background:#fde8e8;color:#8a1c1c', text: st.source === 'server'
+        ? 'Your account is currently view-only. Your data is safe — you can still look at it and download it. Subscribe or renew below to start editing again.'
+        : 'The app is currently read-only. Enter a valid licence key below to unlock editing. Your data is safe and can still be viewed and exported.' }));
       container.appendChild(s);
 
       var pr = el('div', { class: 'card' }, [el('h3', { text: 'Plans (' + L.CURRENCY + ')' })]);
@@ -55,7 +58,7 @@
       // read from the server, so there is nothing for the school to enter here.
       // Offline licence keys only apply to a standalone/local install.
       if (st.source === 'server') {
-        container.appendChild(el('div', { class: 'note', text: 'Your plan and free-trial period are managed by Zetranova. To change your plan, extend a trial, or renew, please contact us — quote your school name shown above.' }));
+        container.appendChild(howToSubscribe(st));
         return;
       }
 
@@ -74,6 +77,42 @@
       if (isAdmin) container.appendChild(ac);
       else container.appendChild(el('div', { class: 'note', text: 'To change your plan, renew, or enter a licence key, please contact your school Administrator or Zetranova.' }));
     });
+  }
+
+  // Simple, beginner-friendly "how do I pay / renew?" card for hosted schools.
+  // The developer records the payment on their side (platform console), so the
+  // school's job is just: tell us who you are, pay, and see the status change.
+  function howToSubscribe(st) {
+    var address = global.location.origin + '/' + (App.schoolId || '');
+    var verb = st.state === 'trialing' ? 'subscribe' : 'renew';
+    var msg = 'Hello Zetranova, I would like to ' + verb + ' to Zetclass.\n'
+      + 'School: ' + (st.school || (App.ctx.school && App.ctx.school.name) || '') + '\n'
+      + 'Web address: ' + address + '\n'
+      + 'Plan I want (Basic / Growth / Premium): \n'
+      + 'Number of pupils: ';
+    var contact = global.ZETCLASS_CONTACT || {};
+    var waDigits = String(contact.whatsapp || '').replace(/\D+/g, '');
+    var support = App.supportLine ? App.supportLine() : '';
+
+    var steps = el('ol', { class: 'start-steps' }, [
+      el('li', {}, [el('strong', { text: 'Pick a plan' }), el('div', { class: 'help', text: 'See the table above — Basic, Growth or Premium depends on how many pupils you have.' })]),
+      el('li', {}, [el('strong', { text: 'Message us' }), el('div', { class: 'help', text: 'Tap the button below. It writes the message for you, with your school’s details.' })]),
+      el('li', {}, [el('strong', { text: 'Pay as we explain' }), el('div', { class: 'help', text: 'We reply with the payment details and confirm once we receive your payment.' })]),
+      el('li', {}, [el('strong', { text: 'Done' }), el('div', { class: 'help', text: 'Your status above changes to “Active” with your new “Paid until” date. No need to do anything else.' })])
+    ]);
+    var actions = el('div', { class: 'btn-row' });
+    if (waDigits) actions.appendChild(el('a', { class: 'btn gold', href: 'https://wa.me/' + waDigits + '?text=' + encodeURIComponent(msg), target: '_blank', rel: 'noopener', text: 'Message us on WhatsApp' }));
+    var copyBtn = el('button', { class: 'btn ' + (waDigits ? 'ghost' : 'gold'), type: 'button', text: 'Copy my message', onclick: function () {
+      var ok = function () { copyBtn.textContent = 'Copied ✓'; setTimeout(function () { copyBtn.textContent = 'Copy my message'; }, 2000); };
+      if (global.navigator.clipboard && global.navigator.clipboard.writeText) global.navigator.clipboard.writeText(msg).then(ok, function () { U.toast('Could not copy.', 'warn'); });
+      else U.toast('Could not copy.', 'warn');
+    } });
+    actions.appendChild(copyBtn);
+
+    var card = el('div', { class: 'card' }, [el('h3', { text: 'How to ' + (verb === 'subscribe' ? 'subscribe' : 'renew') }), steps, actions]);
+    if (support) card.appendChild(el('div', { class: 'help', style: 'margin-top:.6rem', text: 'Contact: ' + support }));
+    else card.appendChild(el('div', { class: 'help', style: 'margin-top:.6rem', text: 'Paste the copied message into a WhatsApp or email message to Zetranova.' }));
+    return card;
   }
 
   global.Views = global.Views || {};
