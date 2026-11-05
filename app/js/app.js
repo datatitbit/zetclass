@@ -922,10 +922,24 @@
   // The left-hand brand panel on desktop, a slim brand bar on phones. Shared by every sign-in /
   // register / password screen so they all feel like one product. (linkText/linkHref: the small
   // link in the phone bar, e.g. "Sign in".)
+  // A school's own portal link (zetclass.com/<school>) is the SCHOOL's page: it keeps the plain text mark.
+  // The main Zetclass pages (home, sign up, password screens, owner console) show the Zetclass logo.
+  function isClientPortalPage() {
+    var seg = decodeURIComponent((global.location.pathname || '/').split('/')[1] || '').toLowerCase();
+    return ['', 'signup', 'admin', 'forgot-password', 'reset-password', 'login', 'terms.html', 'privacy.html'].indexOf(seg) === -1;
+  }
   function brandPanel(linkText, linkHref) {
     var trialDays = (global.License && global.License.TRIAL_DAYS) || 30;
     var panel = U.el('aside', { class: 'auth-brand' });
-    panel.appendChild(U.el('div', { class: 'brand-top' }, [U.el('a', { class: 'auth-wordmark', href: '/', text: 'Zetclass' })]));
+    var client = isClientPortalPage();
+    if (client) {
+      panel.appendChild(U.el('div', { class: 'brand-top' }, [U.el('a', { class: 'auth-wordmark', href: '/', text: 'Zetclass' })]));
+    } else {
+      panel.appendChild(U.el('div', { class: 'brand-top' }, [
+        U.el('a', { class: 'auth-logo-link', href: '/', 'aria-label': 'Zetclass home' }, [U.el('img', { class: 'auth-logo', src: '/logo.png', alt: 'Zetclass', width: '520', height: '141' })]),
+        U.el('p', { class: 'brand-tag', text: 'School management system' })
+      ]));
+    }
     if (linkText) panel.appendChild(U.el('a', { class: 'brand-mobile-link', href: linkHref, text: linkText }));
     var points = U.el('ul', { class: 'brand-points' });
     [trialDays + '-day free trial. No card or payment details needed.',

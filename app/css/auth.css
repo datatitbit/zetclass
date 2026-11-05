@@ -135,3 +135,13 @@ details.optional-details[open] summary::before { content: "\2013"; }
 .slug-status.ok { color: #1b6b3a; } .slug-status.bad { color: #b3261e; } .slug-status.wait { color: var(--muted); font-weight: 500; }
 .notice-info { display: flex; gap: .6rem; background: #eef6ff; border: 1px solid #bcd4ee; border-radius: 10px; padding: .6rem .75rem; margin: .2rem 0 .8rem; font-size: .85rem; color: #1f3f63; line-height: 1.4; }
 .notice-info svg { flex: none; width: 1.1rem; height: 1.1rem; margin-top: .1rem; color: #1f5b99; }
+
+/* The Zetclass logo (main pages only; a school's own portal link keeps the text mark). */
+.auth-logo-link { display: inline-block; line-height: 0; }
+.auth-logo { display: block; height: 34px; width: auto; }
+.brand-tag { display: none; margin: 0; color: rgba(255,255,255,.82); font-size: .98rem; letter-spacing: .02em; }
+@media (min-width: 960px) {
+  .auth-brand .brand-top { display: flex; flex-direction: column; align-items: flex-start; gap: .6rem; }
+  .auth-logo { height: 84px; }
+  .brand-tag { display: block; }
+}
