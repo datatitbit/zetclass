@@ -1125,7 +1125,7 @@
     });
 
     // OPTIONAL details: website and postal address.
-    var postalIn   = U.el('textarea', { id: 'f-postal_address', name: 'postal_address', rows: '2', maxlength: '200', placeholder: 'e.g. P. O. Box 123, Accra, or street address / digital address (GA-123-4567)', autocomplete: 'street-address' });
+    var postalIn   = U.el('input', { type: 'text', id: 'f-postal_address', name: 'postal_address', maxlength: '200', placeholder: 'e.g. P. O. Box 123, Accra' });
     var websiteIn  = U.el('input', { type: 'text', id: 'f-website', name: 'website', maxlength: '200', placeholder: 'e.g. www.myschool.edu.gh', autocomplete: 'url', autocapitalize: 'none', spellcheck: 'false', inputmode: 'url' });
     function optField(label, node) { return U.el('div', { class: 'field' }, [U.el('label', { text: label }), node, reqNote(false)]); }
     // Always open: the person simply fills in what they want and ignores the rest.
