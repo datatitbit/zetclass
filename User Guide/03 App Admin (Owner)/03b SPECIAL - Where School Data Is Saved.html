@@ -33,7 +33,7 @@
 <tr><td>The Zetclass program files</td><td>The folder <code>/home/zetrekzh/zetclass.com/app</code> on the same hosting account.</td></tr>
 <tr><td>The secret settings</td><td>A private file called <code>config.local.php</code> inside the <code>api</code> folder: database name and password, the app's signing secret, the owner login (scrambled), and mail settings. It is <b>not</b> on GitHub.</td></tr>
 <tr><td>The code</td><td>GitHub (<code>datatitbit/zetclass</code>) holds the <b>code only</b>. No school data is ever stored there.</td></tr>
-<tr><td>On a user's device</td><td>The signed-in pass (token), the last school name and user type typed (a convenience), and cached copies of the app's own files. School records are <b>not</b> kept on the device in the live version.</td></tr>
+<tr><td>On a user's device (offline copy)</td><td>The app's own files, and the last school name and user type typed. <b>While someone is signed in</b>, the records they have opened are also kept in the browser's private storage (IndexedDB) so the app keeps working offline, together with a queue of changes made offline that have not yet reached the server, and a small batch of reserved ID numbers. Logging out clears all of it. If the person ticked <i>Keep me signed in on this device</i>, the sign-in pass is also kept for up to 12 hours.</td></tr>
 </table></div>
 <div class="box unsure"><span class="label">Not confirmed</span>Which country your hosting server physically sits in is not shown in cPanel. To see it: sign in to Namecheap → <b>Hosting List</b> → <b>Manage</b> next to your plan, and look for the <b>data center</b> location. Write it here once known, because schools and the Data Protection Commission may ask.</div>
 
@@ -135,6 +135,7 @@
 <tr><th>Date</th><th>App version</th><th>What changed</th></tr>
 <tr><td>5 Nov 2026</td><td>20261118</td><td>First edition. Covers the database, files, separation between schools, passwords, access, backups and deletion.</td></tr>
 <tr><td>5 Nov 2026</td><td>20261118</td><td>Backups section rewritten for Namecheap-only hosting: verified that no automatic backups are available; added exact download steps and where to keep copies (OneDrive, Google Drive).</td></tr>
+<tr><td>5 Nov 2026</td><td>20261125</td><td>Added the offline copy kept on a signed-in device, the queue of unsynced changes, and reserved ID-number batches.</td></tr>
 </table></div>
 <footer>Zetranova Limited · Zetclass User Guide 3b (owner only)</footer>
 </div></body></html>
