@@ -188,10 +188,14 @@
   // username), never as something the server trusts. A wrong/malicious value
   // here just fails to find a matching user; no other route accepts school_id
   // from the client at all (every other request is scoped by the token alone).
-  ApiAdapter.prototype.login = function (username, password, schoolId) {
+  ApiAdapter.prototype.login = function (username, password, schoolId, userType) {
     var self = this;
-    return this._req('POST', 'auth/login', { username: username, password: password, school_id: schoolId || undefined }, { noAuth: true })
+    return this._req('POST', 'auth/login', { username: username, password: password, school_id: schoolId || undefined, user_type: userType || undefined }, { noAuth: true })
       .then(function (res) { self.token = res.token; saveApiToken(res.token); return res; });
+  };
+  // School-name suggestions for the sign-in box: [{id, name}], at most 8. Public; names only.
+  ApiAdapter.prototype.searchSchools = function (q) {
+    return this._req('GET', 'schools/search', null, { noAuth: true, query: { q: q } });
   };
   // Self-service signup. The server creates the school + its Admin login and
   // answers with a ready session token, so the new school lands straight in
@@ -303,10 +307,11 @@
     reset: function () { return adapter.reset(); },
 
     // ---- API-mode session (no-ops / rejects when running in local mode) ----
-    apiLogin: function (username, password, schoolId) {
+    apiLogin: function (username, password, schoolId, userType) {
       if (!DB.isApi) return Promise.reject(new Error('apiLogin is only available when DB_CONFIG.useApi is true.'));
-      return adapter.login(username, password, schoolId);
+      return adapter.login(username, password, schoolId, userType);
     },
+    searchSchools: function (q) { return DB.isApi ? adapter.searchSchools(q) : Promise.resolve([]); },
     apiRegister: function (form) {
       if (!DB.isApi) return Promise.reject(new Error('Signup is only available on the live service.'));
       return adapter.register(form);

@@ -748,21 +748,72 @@
     var root = U.clear(U.$('#root'));
     var wrap = U.el('div', { class: 'login-wrap' });
     var card = U.el('div', { class: 'card' });
-    var label = App.schoolSlugLabel || 'Zetclass';
-    card.appendChild(U.el('div', { class: 'login-badge', text: initials(label) }));
-    card.appendChild(U.el('h1', { text: label }));
-    card.appendChild(U.el('p', { class: 'muted', text: 'Sign in to your school portal.' }));
+    // Opened from a school's own link (zetclass.com/st-marys-school)? Then greet that school.
+    var known = !!(App.schoolSlugLabel && App.schoolIdHint);
+    if (known) {
+      card.appendChild(U.el('div', { class: 'login-badge', text: initials(App.schoolSlugLabel) }));
+      card.appendChild(U.el('h1', { text: App.schoolSlugLabel }));
+      card.appendChild(U.el('p', { class: 'muted', text: 'Sign in to your school portal.' }));
+    } else {
+      card.appendChild(U.el('h1', { text: 'Sign in' }));
+      card.appendChild(U.el('p', { class: 'muted', text: 'Welcome back. Choose your school and who you are.' }));
+    }
 
-    var errBox = U.el('div', { class: 'login-error', style: 'display:none;color:#b3261e;font-size:.85rem;margin:.4rem 0' });
-    function field(labelText, inputEl) { return U.el('div', { class: 'field' }, [U.el('label', { text: labelText }), inputEl]); }
+    var errBox = U.el('div', { class: 'login-error', role: 'alert', style: 'display:none;color:#b3261e;font-size:.9rem;margin:.4rem 0 .8rem' });
+    function field(labelText, inputEl, help) {
+      var kids = [U.el('label', { text: labelText }), inputEl];
+      if (help) kids.push(help);
+      return U.el('div', { class: 'field' }, kids);
+    }
 
-    // school_id is only ever a LOOKUP HINT for the login call (pre-filled by a
-    // URL-slug router when present) — the server never trusts it for anything
-    // beyond finding this school's user by username; every route after login
-    // is scoped purely by the signed token, never by anything the client sends.
-    var schoolInput = U.el('input', { type: 'text', value: App.schoolIdHint || '', placeholder: 'e.g. st-marys-school', autocapitalize: 'none', spellcheck: 'false' });
-    var userInput = U.el('input', { type: 'text', autocomplete: 'username', placeholder: 'Username' });
+    // What this browser used last time (a convenience only: school name and user type, never a password).
+    var saved = {};
+    try { saved = JSON.parse(localStorage.getItem('zc_last_login') || '{}') || {}; } catch (e) { saved = {}; }
+
+    // 1. SCHOOL: the full name, with suggestions as the person types. (The school's web address works too.)
+    var schoolInput = U.el('input', { type: 'text', value: App.schoolSlugLabel || App.schoolIdHint || saved.school || '', placeholder: 'Start typing your school’s full name', autocomplete: 'off', autocapitalize: 'words', spellcheck: 'false', list: 'school-suggest' });
+    var suggest = U.el('datalist', { id: 'school-suggest' });
+    var timer = null, lastQ = '';
+    schoolInput.addEventListener('input', function () {
+      clearTimeout(timer);
+      var q = schoolInput.value.trim();
+      if (q.length < 3) { U.clear(suggest); return; }
+      timer = setTimeout(function () {
+        if (q === lastQ) return;
+        lastQ = q;
+        DB.searchSchools(q).then(function (rows) {
+          U.clear(suggest);
+          (rows || []).forEach(function (r) { suggest.appendChild(U.el('option', { value: r.name })); });
+        }).catch(function () { /* suggestions are a nicety: typing the full name still works */ });
+      }, 250);
+    });
+
+    // 2. USER TYPE: the order and wording schools expect. The value is the role the server knows.
+    var TYPES = [
+      ['Teacher', 'Teaching staff', 'Class teachers and subject teachers.'],
+      ['Other staff', 'Non-teaching staff', 'Accountant, front desk, cleaner, security and other staff.'],
+      ['Admin', 'Admin', 'The school administrator.'],
+      ['Director', 'Director', 'The proprietor or director.'],
+      ['Parent', 'Parent / guardian', 'A pupil’s parent or guardian.']
+    ];
+    var typeSel = U.el('select', {}, [U.el('option', { value: '', text: 'Select user type…' })].concat(TYPES.map(function (t) { return U.el('option', { value: t[0], text: t[1] }); })));
+    var typeHelp = U.el('div', { class: 'help', text: '' });
+    function paintTypeHelp() {
+      var t = TYPES.filter(function (x) { return x[0] === typeSel.value; })[0];
+      typeHelp.textContent = t ? t[2] : '';
+    }
+    typeSel.addEventListener('change', paintTypeHelp);
+
+    // 3. USERNAME and 4. PASSWORD. Several people share one user type, so the username says which one is signing in.
+    var userInput = U.el('input', { type: 'text', autocomplete: 'username', autocapitalize: 'none', spellcheck: 'false', placeholder: 'Your username' });
+    if (saved.type && TYPES.some(function (t) { return t[0] === saved.type; })) { typeSel.value = saved.type; paintTypeHelp(); }
     var passInput = U.el('input', { type: 'password', autocomplete: 'current-password', placeholder: 'Password' });
+    var showBtn = U.el('button', { type: 'button', class: 'pw-toggle', text: 'Show', 'aria-label': 'Show password', onclick: function () {
+      var show = passInput.type === 'password';
+      passInput.type = show ? 'text' : 'password';
+      showBtn.textContent = show ? 'Hide' : 'Show';
+      showBtn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+    } });
 
     function showError(msg) { errBox.textContent = msg; errBox.style.display = 'block'; }
 
@@ -773,44 +824,41 @@
       var schoolVal = schoolInput.value.trim();
       var userVal = userInput.value.trim();
       var passVal = passInput.value;
-      if (!userVal || !passVal) { showError('Please enter your username and password.'); return; }
+      if (!schoolVal) { showError('Please enter your school’s name.'); schoolInput.focus(); return; }
+      if (!typeSel.value) { showError('Please choose your user type.'); typeSel.focus(); return; }
+      if (!userVal) { showError('Please enter your username.'); userInput.focus(); return; }
+      if (!passVal) { showError('Please enter your password.'); passInput.focus(); return; }
       submitBtn.disabled = true; submitBtn.textContent = 'Signing in…';
-      DB.apiLogin(userVal, passVal, schoolVal).then(function (res) {
+      DB.apiLogin(userVal, passVal, schoolVal, typeSel.value).then(function (res) {
         submitBtn.disabled = false; submitBtn.textContent = 'Sign in';
+        try { localStorage.setItem('zc_last_login', JSON.stringify({ school: schoolVal, type: typeSel.value })); } catch (e2) { /* private mode: fine */ }
         App.user = res.user; App.schoolId = res.school_id; App.forbiddenMessage = null;
         saveApiSessionMeta({ user: res.user, school_id: res.school_id, role: res.role });
         boot();
       }).catch(function (err) {
         submitBtn.disabled = false; submitBtn.textContent = 'Sign in';
-        // 401 = the server could not match school + username + password. Say that
-        // in everyday words, naming all three since any one of them can be the typo.
+        // 401 = the server could not match school + user type + username + password. Say that in everyday
+        // words, naming all of them since any one can be the typo.
         showError(err && err.status === 401
-          ? 'We could not sign you in. Please check the school address, username and password, then try again.'
+          ? 'We could not sign you in. Please check the school name, user type, username and password, then try again.'
           : ((err && err.message) || 'Something went wrong. Please try again.'));
       });
     }
 
     var form = U.el('form', { class: 'form login-form', onsubmit: doLogin });
     form.appendChild(errBox);
-    var schoolField = field('School address', schoolInput);
-    schoolField.appendChild(U.el('div', { class: 'help', text: 'The last part of your school’s web address, e.g. st-marys-school' }));
-    form.appendChild(schoolField);
-    form.appendChild(field('Username', userInput));
-    // Show/Hide on the password, so people on a phone can check what they typed.
-    var showBtn = U.el('button', { type: 'button', class: 'pw-toggle', text: 'Show', 'aria-label': 'Show password', onclick: function () {
-      var show = passInput.type === 'password';
-      passInput.type = show ? 'text' : 'password';
-      showBtn.textContent = show ? 'Hide' : 'Show';
-      showBtn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
-    } });
-    form.appendChild(U.el('div', { class: 'field' }, [U.el('label', { text: 'Password' }), U.el('div', { class: 'pw-wrap' }, [passInput, showBtn])]));
+    form.appendChild(field('School name', schoolInput, U.el('div', { class: 'help', text: 'Type the full name and pick your school from the list.' })));
+    form.appendChild(suggest);
+    form.appendChild(field('User type', typeSel, typeHelp));
+    form.appendChild(field('Username', userInput, U.el('div', { class: 'help', text: 'Given to you by your school’s administrator.' })));
+    form.appendChild(field('Password', U.el('div', { class: 'pw-wrap' }, [passInput, showBtn])));
     form.appendChild(U.el('div', { style: 'text-align:right;margin:-.4rem 0 .6rem' }, [
       U.el('a', { href: '/forgot-password' + (App.schoolIdHint ? '?school=' + encodeURIComponent(App.schoolIdHint) : ''), class: 'forgot-link', text: 'Forgot password?' })
     ]));
     form.appendChild(submitBtn);
 
     card.appendChild(form);
-    // New schools: a clear, friendly way in — this is the front door of the product.
+    // New schools: a clear, friendly way in. This is the front door of the product.
     var trialDays = (global.License && global.License.TRIAL_DAYS) || 30;
     card.appendChild(U.el('div', { class: 'login-alt' }, [
       U.el('span', { text: 'New to Zetclass? ' }),
@@ -819,10 +867,10 @@
     var support = supportLine();
     card.appendChild(U.el('p', { class: 'help login-alt', text: 'Teachers, staff and parents who forgot their password: ask your school’s administrator to reset it' + (support ? '. Need help? ' + support : '.') }));
     card.appendChild(U.el('p', { class: 'help login-alt' }, [U.el('a', { href: '/terms.html', text: 'Terms of Service' }), document.createTextNode(' · '), U.el('a', { href: '/privacy.html', text: 'Privacy Notice' })]));
-    wrap.appendChild(brandPanel('Sign up','/signup')); wrap.appendChild(card);
+    wrap.appendChild(brandPanel('Sign up', '/signup')); wrap.appendChild(card);
     root.appendChild(wrap);
     // Land on the first EMPTY box so a returning visitor can just start typing.
-    (schoolInput.value ? userInput : schoolInput).focus();
+    (!schoolInput.value ? schoolInput : (!typeSel.value ? typeSel : userInput)).focus();
   }
 
   // ============================================================
@@ -1034,39 +1082,58 @@
     addField('phone', 'School phone number (for calls)', phoneIn, 'Type only the main number, e.g. 24 123 4567. The code is added for you.', phoneBox.box, true);
     addField('whatsapp', 'WhatsApp number (optional)', waIn, 'Only if it differs from the phone. Leave empty if none.', waBox.box, false);
     countrySel.value = 'Ghana';
+    function isGhana() { return countrySel.value === 'Ghana'; }
+
+    // WHERE IS THE SCHOOL (required). In Ghana, Region and District are dropdowns: each region has its own
+    // districts / municipalities, so the District list follows the Region. Elsewhere the region is typed.
+    // The locality (town or area) is typed everywhere. "Other (not listed)" is always offered as a district
+    // so a new or renamed district can never stop a real school registering.
+    section('Where is the school?', true);
+    var DIST = global.GH_DISTRICTS || {}, DIST_OTHER = global.GH_DISTRICT_OTHER || 'Other (not listed)';
+    var regionNames = Object.keys(DIST).length ? Object.keys(DIST) : REGIONS_GH;
+    var regionSel = U.el('select', { autocomplete: 'off' }, [U.el('option', { value: '', text: 'Select region…' })].concat(regionNames.map(function (r) { return U.el('option', { value: r, text: r }); })));
+    var regionTxt = U.el('input', { type: 'text', maxlength: '80', placeholder: 'Region, state or province', autocomplete: 'address-level1', style: 'display:none', 'aria-required': 'true' });
+    var districtSel = U.el('select', { autocomplete: 'off', disabled: true }, [U.el('option', { value: '', text: 'Select region first…' })]);
+    function paintDistricts() {
+      U.clear(districtSel);
+      if (!regionSel.value) { districtSel.disabled = true; districtSel.appendChild(U.el('option', { value: '', text: 'Select region first…' })); return; }
+      districtSel.disabled = false;
+      districtSel.appendChild(U.el('option', { value: '', text: 'Select district…' }));
+      (DIST[regionSel.value] || []).concat([DIST_OTHER]).forEach(function (d) { districtSel.appendChild(U.el('option', { value: d, text: d })); });
+    }
+    var localityIn = U.el('input', { type: 'text', maxlength: '120', placeholder: 'Town, suburb or area, e.g. East Legon' });
+    var regionField = addField('region', 'Region', regionSel, '', U.el('div', {}, [regionSel, regionTxt]), true);
+    var districtField = addField('district', 'District / municipality', districtSel, '', null, true);
+    addField('locality', 'Locality / area', localityIn, 'The town, suburb or area where the school is.', null, true).classList.add('span2');
+    // Errors and focus should land on whichever box (dropdown or typed) is showing.
+    Object.defineProperty(inputs, 'region', { get: function () { return isGhana() ? regionSel : regionTxt; }, configurable: true });
+    function syncCountry() {
+      var gh = isGhana();
+      regionSel.style.display = gh ? '' : 'none';
+      regionTxt.style.display = gh ? 'none' : '';
+      districtField.style.display = gh ? '' : 'none';
+      if (gh) { regionTxt.value = ''; } else { regionSel.value = ''; paintDistricts(); }
+    }
+    syncCountry();
+    regionSel.addEventListener('change', function () { paintDistricts(); setError('region', ''); setError('district', ''); });
+    districtSel.addEventListener('change', function () { setError('district', ''); });
+    regionTxt.addEventListener('input', function () { if (errEls.region.textContent) setError('region', ''); });
     countrySel.addEventListener('change', function () {
-      phoneBox.refresh(); waBox.refresh(); paintRegion();
+      phoneBox.refresh(); waBox.refresh(); syncCountry(); setError('region', ''); setError('district', '');
       if (errEls.phone.textContent) setError('phone', checks.phone());
       if (errEls.whatsapp.textContent) setError('whatsapp', checks.whatsapp());
     });
 
-    // OPTIONAL location details, tucked away so the form stays short: region, district, area, postal address.
-    // Ghana gets the list of its 16 regions; other countries type the region / state / province.
-    var regionHost = U.el('div');
-    var regionIn;
-    function paintRegion() {
-      U.clear(regionHost);
-      if (countrySel.value === 'Ghana') {
-        regionIn = U.el('select', { id: 'f-region', name: 'region' }, [U.el('option', { value: '', text: 'Select region…' })].concat(REGIONS_GH.map(function (r) { return U.el('option', { value: r, text: r }); })));
-      } else {
-        regionIn = U.el('input', { type: 'text', id: 'f-region', name: 'region', maxlength: '80', placeholder: 'Region / state / province', autocomplete: 'address-level1' });
-      }
-      regionHost.appendChild(regionIn);
-    }
-    paintRegion();
-    var districtIn = U.el('input', { type: 'text', id: 'f-district', name: 'district', maxlength: '80', placeholder: 'e.g. Ayawaso West', autocomplete: 'address-level2' });
-    var localityIn = U.el('input', { type: 'text', id: 'f-locality', name: 'locality', maxlength: '120', placeholder: 'Town or suburb, e.g. East Legon' });
+    // OPTIONAL details: website and postal address.
     var postalIn   = U.el('textarea', { id: 'f-postal_address', name: 'postal_address', rows: '2', maxlength: '200', placeholder: 'e.g. P. O. Box 123, Accra, or street address / digital address (GA-123-4567)', autocomplete: 'street-address' });
     var websiteIn  = U.el('input', { type: 'text', id: 'f-website', name: 'website', maxlength: '200', placeholder: 'e.g. www.myschool.edu.gh', autocomplete: 'url', autocapitalize: 'none', spellcheck: 'false', inputmode: 'url' });
     function optField(label, node) { return U.el('div', { class: 'field' }, [U.el('label', { text: label }), node, reqNote(false)]); }
     // Always open: the person simply fills in what they want and ignores the rest.
     function spanned(f) { f.classList.add('span2'); return f; }
     var locationDetails = U.el('div', { class: 'optional-block' }, [
-      U.el('div', { class: 'help', text: 'Helps us find and serve you, and prints on report cards. Fill in what you like and skip the rest — you can add or change these later in Settings.', style: 'margin:-.2rem 0 .7rem' }),
+      U.el('div', { class: 'help', text: 'Fill in what you like and skip the rest. You can add or change these later in Settings.', style: 'margin:-.2rem 0 .7rem' }),
       U.el('div', { class: 'auth-grid two' }, [
         spanned(optField('Website', websiteIn)),
-        optField('Region', regionHost), optField('District', districtIn),
-        spanned(optField('Locality / area', localityIn)),
         spanned(optField('Postal address', postalIn))
       ])
     ]);
@@ -1100,8 +1167,14 @@
       school_name: function () { return schoolIn.value; },
       email: function () { return emailIn.value; }, phone: composedPhone, whatsapp: waBox.composed, password: function () { return passIn.value; }
     });
-    var order = ['school_name', 'email', 'phone', 'whatsapp', 'password'];
-    order.forEach(function (k) {
+    checks.region = function () {
+      if (isGhana()) return regionSel.value ? '' : 'Please choose your region.';
+      return regionTxt.value.trim().length >= 2 ? '' : 'Please enter your region, state or province.';
+    };
+    checks.district = function () { return !isGhana() || districtSel.value ? '' : 'Please choose your district.'; };
+    checks.locality = function () { return localityIn.value.trim().length >= 2 ? '' : 'Please enter your town or area.'; };
+    var order = ['school_name', 'email', 'phone', 'whatsapp', 'region', 'district', 'locality', 'password'];
+    order.filter(function (k) { return k !== 'region' && k !== 'district'; }).forEach(function (k) {
       inputs[k].addEventListener('blur', function () { if (inputs[k].value) setError(k, checks[k]()); });
       // Clear a shown error as soon as the person starts fixing it.
       inputs[k].addEventListener('input', function () { if (errEls[k].textContent) setError(k, checks[k]()); });
@@ -1180,7 +1253,7 @@
         accept_terms: true,
         school_name: schoolIn.value.replace(/\s+/g, ' ').trim(),
         email: emailIn.value.trim(), phone: composedPhone(), whatsapp: waBox.composed(), country: countrySel.value, website: websiteIn.value.trim(),
-        region: (regionIn.value || '').trim(), district: districtIn.value.trim(), locality: localityIn.value.trim(), postal_address: postalIn.value.trim(),
+        region: isGhana() ? regionSel.value : regionTxt.value.trim(), district: isGhana() ? districtSel.value : '', locality: localityIn.value.trim(), postal_address: postalIn.value.trim(),
         password: passIn.value, company_website: hp.value
       };
       btn.disabled = true; btn.textContent = 'Creating your school…';

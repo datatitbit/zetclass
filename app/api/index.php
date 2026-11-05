@@ -200,6 +200,24 @@ function valid_school_extras($b, $needCountry = false) {
         $t = clean_text($b[$k] ?? '', $max);
         if (preg_match('/[<>]/', $t)) { $err[$k] = 'Please remove the < and > characters.'; } else { $v[$k] = $t; }
     }
+    // Public signup: where the school is. In Ghana the region and district must be a real pair from the
+    // official list (a district can always be "Other (not listed)" so a new or renamed one never blocks a
+    // school); elsewhere the region is typed in. The locality (town / area) is required everywhere.
+    if ($needCountry) {
+        if ($v['country'] === 'Ghana') {
+            $gh = require __DIR__ . '/ghana-districts.php';
+            if (!isset($err['region']) && !isset($gh[$v['region']])) { $err['region'] = 'Please choose your region.'; }
+            if (!isset($err['region']) && !isset($err['district'])) {
+                if ($v['district'] === '') { $err['district'] = 'Please choose your district.'; }
+                elseif ($v['district'] !== 'Other (not listed)' && !in_array($v['district'], $gh[$v['region']], true)) {
+                    $err['district'] = 'Please choose a district from the list for your region.';
+                }
+            }
+        } elseif (!isset($err['region']) && mb_strlen($v['region']) < 2) {
+            $err['region'] = 'Please enter your region, state or province.';
+        }
+        if (!isset($err['locality']) && mb_strlen($v['locality']) < 2) { $err['locality'] = 'Please enter your town or area.'; }
+    }
     return [$v, $err];
 }
 /* One-time password the developer hands to a school (new school, reset, or
@@ -355,6 +373,41 @@ $parts = $r === '' ? [] : explode('/', $r);
 $head = $parts[0] ?? '';
 $arg  = $parts[1] ?? null;
 
+/* A person may type either the school's web address (st-marys-school) or its full name
+ * (St. Mary's Basic School; capitals, spacing and punctuation do not matter, because names are
+ * unique that way). Returns the school's id; an unknown entry comes back as typed, so the normal
+ * "invalid credentials" path answers it without revealing what exists. */
+function resolve_school($pdo, $input, $default = '') {
+    $in = trim((string)$input);
+    if ($in === '') { return $default; }
+    $slug = strtolower($in);
+    $st = $pdo->prepare("SELECT id FROM schools WHERE id=?"); $st->execute([$slug]);
+    if ($r = $st->fetch()) { return $r['id']; }
+    $key = school_name_key($in);
+    if ($key !== '') {
+        $st = $pdo->prepare("SELECT id FROM schools WHERE name_key=?"); $st->execute([$key]);
+        if ($r = $st->fetch()) { return $r['id']; }
+    }
+    return $slug;
+}
+
+/* ============================================================
+ * PUBLIC: school-name suggestions for the sign-in box (name + web address only)
+ *   GET ?r=schools/search&q=<at least 3 letters>  -> [{id,name}] (at most 8)
+ * Deliberately tiny: no email, phone or any other detail leaves here, only live schools'
+ * names, and it is rate-limited per address so it cannot be used to list every school.
+ * ============================================================ */
+if ($head === 'schools' && $arg === 'search' && $method === 'GET') {
+    if (!rate_limit($pdo, 'ssearch:' . client_ip(), 90, 60)) {
+        out(['error' => 'Too many searches. Please wait a minute and try again.'], 429);
+    }
+    $key = school_name_key((string)($_GET['q'] ?? ''));
+    if (mb_strlen($key) < 3) { out([]); }
+    $st = $pdo->prepare("SELECT id, name FROM schools WHERE name_key LIKE ? AND status IN ('active','trial','grace') ORDER BY name LIMIT 8");
+    $st->execute(['%' . $key . '%']);
+    out(array_map(function ($r) { return ['id' => $r['id'], 'name' => $r['name']]; }, $st->fetchAll()));
+}
+
 /* ============================================================
  * PUBLIC: login
  * ============================================================ */
@@ -365,7 +418,10 @@ if ($head === 'auth' && $arg === 'login' && $method === 'POST') {
     $b = body();
     $username = isset($b['username']) ? (string)$b['username'] : '';
     $password = isset($b['password']) ? (string)$b['password'] : '';
-    $school   = !empty($b['school_id']) ? strtolower(trim((string)$b['school_id'])) : $cfg['SCHOOL_ID'];
+    $school   = resolve_school($pdo, $b['school'] ?? ($b['school_id'] ?? ''), $cfg['SCHOOL_ID']);
+    // Optional "user type" picked on the sign-in form. It must match the account's role, otherwise the
+    // answer is the same "invalid credentials" as a wrong password (so it reveals nothing extra).
+    $wantRole = trim((string)($b['user_type'] ?? ''));
 
     // Brute-force guard: after 8 wrong guesses for the same account from the
     // same address (or 40 from one address overall) in 15 minutes, stop
@@ -390,7 +446,8 @@ if ($head === 'auth' && $arg === 'login' && $method === 'POST') {
     }
 
     $u = find_user($pdo, $school, $username);
-    if (!$u || !auth_verify_password($password, $u['password_salt'] ?? '', $u['password_hash'] ?? '')) {
+    $roleOk = $wantRole === '' || (in_array($wantRole, ['Admin', 'Director', 'Teacher', 'Other staff', 'Parent'], true) && $u && ($u['role'] ?? '') === $wantRole);
+    if (!$u || !$roleOk || !auth_verify_password($password, $u['password_salt'] ?? '', $u['password_hash'] ?? '')) {
         rate_limit($pdo, $acctKey, 8, 900); rate_limit($pdo, $ipKey, 40, 900);
         out(['error' => 'Invalid credentials'], 401);
     }
@@ -448,9 +505,9 @@ if ($head === 'auth' && $arg === 'forgot' && $method === 'POST') {
         out(['error' => 'Server not configured: APP_SECRET is unset'], 500);
     }
     $b = body();
-    $school   = strtolower(trim((string)($b['school_id'] ?? '')));
+    $school   = resolve_school($pdo, $b['school_id'] ?? '', '');
     $username = trim((string)($b['username'] ?? ''));
-    if ($school === '' || $username === '') { out(['error' => 'Please enter your school address and username.'], 400); }
+    if ($school === '' || $username === '') { out(['error' => 'Please enter your school and username.'], 400); }
     $ip = client_ip();
     if (!rate_limit($pdo, 'forgot:' . $ip, 6, 3600)) {
         out(['error' => 'Too many reset requests from this connection. Please try again in an hour, or contact us.'], 429);
@@ -1285,6 +1342,45 @@ if ($head === 'users' && !$callerIsAdm) {
         $allowed = ['password_salt', 'password_hash', 'must_change_password'];
         foreach (array_keys(body()) as $k) {
             if (!in_array($k, $allowed, true)) { out(['error' => 'You can only change your own password.', 'code' => 'role'], 403); }
+        }
+    }
+}
+/* The Administrator adds, renames and removes login accounts. Two rules keep that safe:
+ *  - a username is unique within the school (ignoring capitals), so a sign-in always means one person;
+ *  - the account you are using, and the school's last Administrator, cannot be removed. */
+if ($head === 'users' && $callerIsAdm) {
+    $allUsers = function () use ($pdo, $SCHOOL) {
+        $st = $pdo->prepare("SELECT id, data FROM documents WHERE collection='users' AND school_id=?");
+        $st->execute([$SCHOOL]);
+        $o = [];
+        foreach ($st->fetchAll() as $r) { $d = json_decode($r['data'], true); if (is_array($d)) { $d['id'] = $r['id']; $o[] = $d; } }
+        return $o;
+    };
+    if ($method === 'POST' || ($method === 'PUT' && $arg !== null)) {
+        $ub = body();
+        if (array_key_exists('username', $ub)) {
+            $un = trim((string)$ub['username']);
+            if (!preg_match('/^[A-Za-z0-9._@-]{2,40}$/', $un)) {
+                out(['error' => 'A username must be 2 to 40 characters: letters, numbers, dots, dashes or underscores, with no spaces.', 'code' => 'username_invalid'], 400);
+            }
+            $selfId = $method === 'PUT' ? $arg : ($ub['id'] ?? '');
+            foreach ($allUsers() as $x) {
+                if ((string)$x['id'] !== (string)$selfId && strtolower((string)($x['username'] ?? '')) === strtolower($un)) {
+                    out(['error' => 'That username is already used by someone else at your school. Please choose another.', 'code' => 'username_taken'], 409);
+                }
+            }
+        }
+    }
+    if ($method === 'DELETE' && $arg !== null) {
+        if ($arg === ($claims['uid'] ?? null)) {
+            out(['error' => 'You cannot remove the account you are signed in with.', 'code' => 'self'], 400);
+        }
+        $list = $allUsers();
+        foreach ($list as $x) {
+            if ((string)$x['id'] === (string)$arg && ($x['role'] ?? '') === 'Admin') {
+                $admins = array_filter($list, function ($y) { return ($y['role'] ?? '') === 'Admin' && empty($y['disabled']); });
+                if (count($admins) <= 1) { out(['error' => 'The school must keep at least one Administrator.', 'code' => 'last_admin'], 400); }
+            }
         }
     }
 }

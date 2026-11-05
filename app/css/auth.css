@@ -116,3 +116,6 @@ details.optional-details[open] summary::before { content: "\2013"; }
 
 /* The school badge sits left, in line with the heading. */
 .login-wrap .login-badge { margin: 0 0 1rem; width: 52px; height: 52px; font-size: 1.5rem; }
+
+.login-wrap .form select.input-error { border-color: #b3261e; box-shadow: 0 0 0 3px rgba(179,38,30,.12); }
+.login-wrap .form select:disabled { background: #f1f4f3; color: #7a8a88; cursor: not-allowed; }

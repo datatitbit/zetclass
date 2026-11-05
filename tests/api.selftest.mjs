@@ -60,7 +60,7 @@ function callWithHost(route, body, hostHeader) {
   });
 }
 
-const good = (n) => ({ school_name: n.school, ...(n.person === null ? {} : { contact_name: n.person || 'Ama Mensah' }), email: n.email, phone: n.phone, password: n.pw || 'Sunrise-2026!', accept_terms: true, confirm_authority: true, country: 'Ghana', ...(n.extra || {}) });
+const good = (n) => ({ school_name: n.school, ...(n.person === null ? {} : { contact_name: n.person || 'Ama Mensah' }), email: n.email, phone: n.phone, password: n.pw || 'Sunrise-2026!', accept_terms: true, confirm_authority: true, country: 'Ghana', region: 'Greater Accra', district: 'Ga East', locality: 'Haatso', ...(n.extra || {}) });
 
 // ---------------------------------------------------------------
 section('1. Signup validation (every required field, plain-English errors)');
@@ -86,6 +86,18 @@ section('1. Signup validation (every required field, plain-English errors)');
   check('a bad WhatsApp number is refused (but WhatsApp may be left empty)', r.status === 400 && r.json.fields.whatsapp && !r.json.fields.phone, r.json);
   r = await call('POST', 'register', good({ school: 'Test A', email: 'a@b.co', phone: '+233241234567', extra: { region: '<b>x</b>' } }));
   check('markup in the region is refused', r.status === 400 && r.json.fields.region, r.json);
+  r = await call('POST', 'register', good({ school: 'Test A', email: 'a@b.co', phone: '+233241234567', extra: { region: '' , district: '' } }));
+  check('in Ghana the region is required', r.status === 400 && r.json.fields.region && !r.json.fields.phone, r.json);
+  r = await call('POST', 'register', good({ school: 'Test A', email: 'a@b.co', phone: '+233241234567', extra: { district: '' } }));
+  check('in Ghana the district is required', r.status === 400 && r.json.fields.district && !r.json.fields.region, r.json);
+  r = await call('POST', 'register', good({ school: 'Test A', email: 'a@b.co', phone: '+233241234567', extra: { region: 'Ashanti', district: 'Ga East' } }));
+  check('a district that belongs to a different region is refused', r.status === 400 && r.json.fields.district, r.json);
+  r = await call('POST', 'register', good({ school: 'Test A', email: 'a@b.co', phone: '+233241234567', extra: { region: 'Atlantis' } }));
+  check('an invented region is refused', r.status === 400 && r.json.fields.region, r.json);
+  r = await call('POST', 'register', good({ school: 'Test A', email: 'a@b.co', phone: '+233241234567', extra: { locality: '' } }));
+  check('the locality (town or area) is required', r.status === 400 && r.json.fields.locality && !r.json.fields.district, r.json);
+  r = await call('POST', 'register', { ...good({ school: 'Test A', email: 'a@b.co', phone: '+233241234567' }), country: 'Nigeria', region: '', district: '' });
+  check('outside Ghana the region is still required (typed) but the district is not', r.status === 400 && r.json.fields.region && !r.json.fields.district, r.json);
   r = await call('POST', 'register', good({ school: 'Test A', email: 'a@b.co', phone: '+233241234567', extra: { website: 'not a website' } }));
   check('a bad website address is refused (but website may be left empty)', r.status === 400 && r.json.fields.website && !r.json.fields.phone, r.json);
   r = await call('POST', 'register', good({ school: 'X', email: 'a@b.co', phone: '+233241234567' }));
@@ -103,10 +115,13 @@ section('1. Signup validation (every required field, plain-English errors)');
 }
 
 // ---------------------------------------------------------------
+// The validation checks above are all failed attempts, which count towards the 30-tries-an-hour typo
+// allowance. Reset just that counter so the signups below test the real 5-schools-an-hour limit.
+if (dbAvailable()) { dbRun("DELETE FROM rate_limits WHERE k LIKE 'regtry:%'"); }
 section('2. Signup happy path + many schools in ONE database');
 const A = { school: "St. Mary's Basic School", email: 'Head@StMarys.example', phone: '+233 24 123 4567', person: 'Ama Mensah' };
 const B = { school: "St. Mary's Junior School", email: 'other@school.example', phone: '+233205550001', person: 'Kofi Boateng' }; // similar name, different school
-const C = { school: 'Bright Future Academy', email: 'bf@school.example', phone: '+233205550002', person: 'Esi Owusu', extra: { website: 'www.brightfuture.edu.gh', whatsapp: '+233 20 555 0099', region: 'Ashanti', district: 'Kumasi Metropolitan', locality: 'Adum', postal_address: 'P. O. Box 12, Kumasi' } };
+const C = { school: 'Bright Future Academy', email: 'bf@school.example', phone: '+233205550002', person: 'Esi Owusu', extra: { website: 'www.brightfuture.edu.gh', whatsapp: '+233 20 555 0099', region: 'Ashanti', district: 'Kumasi', locality: 'Adum', postal_address: 'P. O. Box 12, Kumasi' } };
 const D = { school: 'Tamper Test School', email: 'tamper@school.example', phone: '+233205550003', person: null, pw: 'abcd1234' };   // D signs up with NO contact person (it is optional)
 let sa, sb, sc, sd;
 {
@@ -130,6 +145,24 @@ let sa, sb, sc, sd;
   check('school D created with NO contact person and a weak 8-character password (neither is required to be strong)', sd.status === 201 && sd.json.user && sd.json.user.name === 'School Administrator', sd.json);
   const sdUsers = await call('GET', 'users', null, sd.json.token);
   check('D: its Administrator login is simply named “School Administrator”', Array.isArray(sdUsers.json) && sdUsers.json[0] && sdUsers.json[0].name === 'School Administrator', sdUsers.json);
+
+  // --- the sign-in form: school name (with suggestions), user type, username, password ---
+  let lg = await call('POST', 'auth/login', { school: 'bright FUTURE academy', user_type: 'Admin', username: 'admin', password: 'Sunrise-2026!' });
+  check('sign in with the full school NAME (capitals and spacing do not matter) and the right user type', lg.status === 200 && lg.json.school_id === 'bright-future-academy', lg.json);
+  lg = await call('POST', 'auth/login', { school_id: 'bright-future-academy', user_type: 'Admin', username: 'admin', password: 'Sunrise-2026!' });
+  check('the web address still works instead of the name', lg.status === 200 && lg.json.school_id === 'bright-future-academy', lg.json);
+  lg = await call('POST', 'auth/login', { school: 'Bright Future Academy', user_type: 'Teacher', username: 'admin', password: 'Sunrise-2026!' });
+  check('a wrong user type is refused like a wrong password (401, nothing extra revealed)', lg.status === 401 && lg.json.error === 'Invalid credentials', lg.json);
+  lg = await call('POST', 'auth/login', { school: 'Bright Future Academy', user_type: 'Bogus', username: 'admin', password: 'Sunrise-2026!' });
+  check('an unknown user type is refused (401)', lg.status === 401, lg.json);
+  lg = await call('POST', 'auth/login', { school: 'No Such School At All', user_type: 'Admin', username: 'admin', password: 'Sunrise-2026!' });
+  check('an unknown school name is refused (401)', lg.status === 401, lg.json);
+  let sg = await call('GET', 'schools/search', null, null, { q: 'bright fut' });
+  check('school-name suggestions: typing part of a name finds the school (id + name only)', sg.status === 200 && Array.isArray(sg.json) && sg.json.some(x => x.id === 'bright-future-academy' && x.name === 'Bright Future Academy') && sg.json.every(x => Object.keys(x).sort().join() === 'id,name'), sg.json);
+  sg = await call('GET', 'schools/search', null, null, { q: 'br' });
+  check('…but fewer than 3 letters returns nothing (so the list cannot be dumped)', sg.status === 200 && Array.isArray(sg.json) && sg.json.length === 0, sg.json);
+  sg = await call('GET', 'schools/search', null, null, { q: 'zzzzqqqq' });
+  check('…and a name that does not exist returns an empty list', sg.status === 200 && sg.json.length === 0, sg.json);
   let d = await call('POST', 'register', good({ ...C, school: 'Another One', phone: '+233200000009' }));
   check('same EMAIL twice is blocked (one trial per email) — 409', d.status === 409, d);
   d = await call('POST', 'register', good({ ...C, school: 'Another Two', email: 'new@school.example' }));
@@ -347,6 +380,18 @@ section('9. Roles inside one school (no privilege escalation)');
   check('Teacher CANNOT create accounts', (await call('POST', 'users', { id: 'u-evil', username: 'evil', role: 'Admin' }, tT)).status === 403);
   check('Teacher CANNOT delete accounts', (await call('DELETE', 'users/u-admin', null, tT)).status === 403);
   check('Teacher can change their own password fields', (await call('PUT', 'users/u-teacher1', { password_salt: 'b'.repeat(32), password_hash: 'c'.repeat(64), must_change_password: false }, tT)).status === 200);
+  // --- usernames: people cannot change their own; only the school Administrator renames; they stay unique ---
+  check('Teacher CANNOT change their own username', (await call('PUT', 'users/u-teacher1', { username: 'sneaky' }, tT)).status === 403);
+  check('Administrator CANNOT give two accounts the same username (capitals ignored) → 409', (await mk('Teacher Dup', 'TEACHER1', 'Teacher')).status === 409);
+  let rn = await call('PUT', 'users/u-teacher1', { username: 'mr.mensah' }, tA);
+  check('Administrator can rename a username', rn.status === 200 && rn.json.username === 'mr.mensah', rn.json);
+  check('…and the renamed account is the one that can sign in (old name stops working)', (await call('POST', 'auth/login', { username: 'teacher1', password: 'x', school_id: 'st-marys-basic-school' })).status === 401);
+  check('renaming to a username someone else has is refused (409)', (await call('PUT', 'users/u-teacher1', { username: 'admin' }, tA)).status === 409);
+  check('renaming to something with spaces / symbols is refused (400)', (await call('PUT', 'users/u-teacher1', { username: 'bad name!' }, tA)).status === 400);
+  await call('PUT', 'users/u-teacher1', { username: 'teacher1' }, tA);   // back to the original name for the later tests
+  check('Administrator CANNOT remove the account they are signed in with', (await call('DELETE', 'users/u-admin', null, tA)).status === 400);
+  const extra = await mk('Temp Person', 'temp.person', 'Other staff');
+  check('Administrator can add and remove an account', extra.status === 201 && (await call('DELETE', 'users/u-temp.person', null, tA)).status === 200 && (await call('GET', 'users/u-temp.person', null, tA)).json === null);
   check('Teacher CANNOT change permissions', (await call('PUT', 'permissions', { replace: [] }, tT)).status === 403);
   check('Teacher CANNOT download the whole-school backup', (await call('GET', 'export', null, tT)).status === 403);
   check('Teacher CANNOT overwrite the school with an import', (await call('PUT', 'import', {}, tT)).status === 403);
@@ -479,8 +524,8 @@ section('10. Developer adds a school by hand; reset');
   // --- country, WhatsApp, region, district, locality, postal address ---
   const lst = (await call('GET', 'schools/list', null, tD)).json;
   const bf = lst.find(x => x.id === 'bright-future-academy'), sm = lst.find(x => x.id === 'st-marys-basic-school');
-  check('signup stores the country; optional details left empty stay empty', sm.country === 'Ghana' && !sm.whatsapp && !sm.region && !sm.postal_address, sm);
-  check('signup stores WhatsApp, region, district, locality and postal address when given', bf.website === 'https://www.brightfuture.edu.gh' && bf.whatsapp === '+233205550099' && bf.region === 'Ashanti' && bf.district === 'Kumasi Metropolitan' && bf.locality === 'Adum' && bf.postal_address === 'P. O. Box 12, Kumasi', bf);
+  check('signup stores the country, region, district and locality; optional details left empty stay empty', sm.country === 'Ghana' && sm.region === 'Greater Accra' && sm.district === 'Ga East' && sm.locality === 'Haatso' && !sm.whatsapp && !sm.postal_address && !sm.website, sm);
+  check('signup stores WhatsApp, region, district, locality and postal address when given', bf.website === 'https://www.brightfuture.edu.gh' && bf.whatsapp === '+233205550099' && bf.region === 'Ashanti' && bf.district === 'Kumasi' && bf.locality === 'Adum' && bf.postal_address === 'P. O. Box 12, Kumasi', bf);
   r = await edit({ whatsapp: '+233 24 000 1111', region: 'Volta', postal_address: 'Box 7, Ho' });
   lr = await listRow();
   check('developer can change WhatsApp, region and postal address', r.status === 200 && lr.whatsapp === '+233240001111' && lr.region === 'Volta' && lr.postal_address === 'Box 7, Ho', [r.json, lr]);

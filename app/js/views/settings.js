@@ -1091,9 +1091,45 @@
     });
   }
 
+  // The Administrator may rename someone's username (it is how they sign in, so tell them afterwards).
+  // People cannot change their own username: the server refuses it.
+  function renameUsernameModal(u, onDone) {
+    var body = el('div');
+    var input = el('input', { type: 'text', value: u.username || '', maxlength: '40', autocapitalize: 'none', spellcheck: 'false' });
+    body.appendChild(el('div', { class: 'field' }, [el('label', { text: 'New username for ' + u.name }), input,
+      el('div', { class: 'help', text: 'Letters, numbers, dots, dashes or underscores, with no spaces. Tell ' + u.name + ' the new username: it is what they type to sign in. Their password stays the same.' })]));
+    var errBox = el('div', { style: 'color:#b3261e;font-size:.85rem;display:none' });
+    body.appendChild(errBox);
+    U.modal({
+      title: 'Rename username', body: body,
+      actions: [
+        { label: 'Cancel', onClick: function (c) { c(); } },
+        { label: 'Save', kind: 'gold', onClick: function (c) {
+          errBox.style.display = 'none';
+          var v = input.value.trim();
+          if (v === (u.username || '')) { c(); return; }
+          DB.update('users', u.id, { username: v }).then(function () {
+            U.toast('Username changed to ' + v + '.'); c(); if (onDone) onDone();
+          }).catch(function (e) {
+            errBox.textContent = (e && e.message) || 'Could not change the username.'; errBox.style.display = 'block';
+          });
+        } }
+      ]
+    });
+  }
+
+  function removeAccount(u, onDone) {
+    U.confirm('Remove the login account for ' + u.name + ' (' + (u.username || 'no username') + ')?\n\nThey will no longer be able to sign in. Their records (pupils, scores, payments they entered) are not deleted.', function () {
+      DB.remove('users', u.id).then(function () { U.toast('Account removed.'); if (onDone) onDone(); })
+        .catch(function (e) { U.toast((e && e.message) || 'Could not remove the account.', 'err'); });
+    });
+  }
+
   function addAccountModal(staffList, parentsList, onDone) {
     var roleSel = el('select');
-    ['Admin', 'Director', 'Teacher', 'Other staff', 'Parent'].forEach(function (r) { roleSel.appendChild(el('option', { value: r, text: r })); });
+    // Same names and order as the sign-in screen (the stored value stays Teacher / Other staff).
+    [['Teacher', 'Teaching staff'], ['Other staff', 'Non-teaching staff'], ['Admin', 'Admin'], ['Director', 'Director'], ['Parent', 'Parent / guardian']]
+      .forEach(function (r) { roleSel.appendChild(el('option', { value: r[0], text: r[1] })); });
     var linkSel = el('select');
     function refreshLink() {
       U.clear(linkSel);
@@ -1106,6 +1142,7 @@
     var userInput = el('input', { type: 'text', placeholder: 'Username (e.g. first initial + last name)' });
     var passInput = el('input', { type: 'password', placeholder: 'Initial password (min 8 characters)' });
     var body = el('div');
+    body.appendChild(el('div', { class: 'help', style: 'margin-bottom:.6rem', text: 'Only the school Administrator can add or remove login accounts. Tell the person their school name, user type, username and password; they sign in at zetclass.com.' }));
     [['Full name', nameInput], ['User type', roleSel], ['Link to staff/parent record', linkSel],
       ['Username', userInput], ['Initial password', passInput]].forEach(function (f) {
       body.appendChild(el('div', { class: 'field' }, [el('label', { text: f[0] }), f[1]]));
@@ -1126,7 +1163,8 @@
             if (roleSel.value === 'Parent') { if (linkSel.value) rec.linked_student_ids = (parentsList.filter(function (p) { return p.id === linkSel.value; })[0] || {}).student_ids || []; }
             else if (linkSel.value) rec.staff_id = (staffList.filter(function (s) { return s.id === linkSel.value; })[0] || {}).staff_id;
             return DB.insert('users', rec);
-          }).then(function () { U.toast('Login account created.'); c(); if (onDone) onDone(); });
+          }).then(function () { U.toast('Login account created.'); c(); if (onDone) onDone(); })
+            .catch(function (e) { errBox.textContent = (e && e.message) || 'Could not create the account.'; errBox.style.display = 'block'; });
         } }
       ]
     });
@@ -1187,7 +1225,7 @@
 
       // ---- Login accounts: password reset + create new accounts ----
       var ucard = el('div', { class: 'card' }, [el('h2', { text: 'Login accounts' })]);
-      ucard.appendChild(el('div', { class: 'help', text: 'Everyone signs in with the school name, their user type, and their own password. Reset a password if someone forgets it, or add a login for a new staff member or parent.' }));
+      ucard.appendChild(el('div', { class: 'help', text: 'Everyone signs in with the school name, their user type, their username and their own password. People can change their own password, but only you (the school Administrator) can add or remove accounts, rename a username, or reset a forgotten password.' }));
       var ut = el('table', { class: 'data' });
       ut.appendChild(el('thead', {}, [el('tr', {}, ['Name', 'User type', 'Username', ''].map(function (h) { return el('th', { text: h }); }))]));
       var utb = el('tbody');
@@ -1196,7 +1234,11 @@
           el('td', { text: u.name }),
           el('td', {}, [el('span', { class: 'tag', text: u.role })]),
           el('td', { text: u.username || '—' }),
-          el('td', {}, [el('button', { class: 'btn sm ghost', text: 'Reset password', onclick: function () { resetPasswordModal(u, function () { U.clear(panel); tabAccess(panel); }); } })])
+          el('td', {}, [el('div', { class: 'wrap-actions' }, [
+            el('button', { class: 'btn sm ghost', text: 'Rename username', onclick: function () { renameUsernameModal(u, function () { U.clear(panel); tabAccess(panel); }); } }),
+            el('button', { class: 'btn sm ghost', text: 'Reset password', onclick: function () { resetPasswordModal(u, function () { U.clear(panel); tabAccess(panel); }); } }),
+            el('button', { class: 'btn sm danger', text: 'Remove', onclick: function () { removeAccount(u, function () { U.clear(panel); tabAccess(panel); }); } })
+          ])])
         ]));
       });
       ut.appendChild(utb);
