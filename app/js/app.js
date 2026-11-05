@@ -848,12 +848,6 @@
         if (/[<>]/.test(s)) return 'The school name cannot contain < or >.';
         return '';
       },
-      contact_name: function () {
-        var s = v.contact_name().replace(/\s+/g, ' ').trim();
-        if (s.length < 2) return 'Please enter your full name.';
-        if (/[<>]/.test(s)) return 'Your name cannot contain < or >.';
-        return '';
-      },
       email: function () {
         var s = v.email().trim();
         return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s) ? '' : 'Please enter a valid email address, like name@example.com.';
@@ -890,9 +884,10 @@
     card.appendChild(U.el('h1', { text: 'Start your free trial' }));
     card.appendChild(U.el('p', { class: 'muted', text: 'Set up your school in about 2 minutes. Free for ' + trialDays + ' days — no payment details needed.' }));
 
-    var alertBox = U.el('div', { class: 'login-error', role: 'alert', style: 'display:none;color:#b3261e;font-size:.85rem;margin:.4rem 0 .8rem' });
+    // The message box sits just ABOVE the Create button (added below), so whatever goes
+    // wrong appears exactly where the person just clicked, never off-screen at the top.
+    var alertBox = U.el('div', { class: 'login-error', role: 'alert', style: 'display:none;color:#8a1c14;background:#fdecea;border:1px solid #e8a49d;border-radius:8px;padding:.7rem .85rem;font-size:.95rem;font-weight:600;margin:.6rem 0 .8rem' });
     var form = U.el('form', { class: 'form login-form', novalidate: true });
-    form.appendChild(alertBox);
 
     var inputs = {}, errEls = {};
     // `control` is what goes on screen (the input itself, or the input plus a
@@ -913,7 +908,6 @@
     }
 
     var schoolIn = U.el('input', { type: 'text', autocomplete: 'organization', placeholder: 'e.g. St. Mary’s Basic School', maxlength: '120' });
-    var nameIn   = U.el('input', { type: 'text', autocomplete: 'name', placeholder: 'e.g. Ama Mensah', maxlength: '80' });
     var emailIn  = U.el('input', { type: 'email', autocomplete: 'email', inputmode: 'email', placeholder: 'you@example.com', maxlength: '160', autocapitalize: 'none', spellcheck: 'false' });
     var phoneIn  = U.el('input', { type: 'tel', autocomplete: 'tel', inputmode: 'tel', placeholder: 'e.g. 24 123 4567', maxlength: '24' });
     // Country code: Ghana is pre-selected; the number is saved in full international form (+233…).
@@ -931,9 +925,8 @@
     var passIn   = U.el('input', { type: 'password', autocomplete: 'new-password', placeholder: 'At least 8 characters', maxlength: '128' });
 
     addField('school_name', 'School name', schoolIn);
-    addField('contact_name', 'Your full name', nameIn, 'You will be the school’s administrator.');
-    addField('email', 'Email address', emailIn);
-    addField('phone', 'Phone or WhatsApp number', phoneIn, 'Choose your country code, then type your number. Only used to help you if you get stuck.',
+    addField('email', 'Email address', emailIn, 'Your password-reset link is sent here.');
+    addField('phone', 'Phone or WhatsApp number', phoneIn, 'Choose your country code, then type your number. We only use it to help you if you get stuck.',
       U.el('div', { style: 'display:flex;gap:.5rem' }, [countrySel, phoneIn]));
     countrySel.addEventListener('change', function () { if (errEls.phone.textContent) setError('phone', checks.phone()); });
     // The password box gets a Show/Hide button instead of a "type it twice" box:
@@ -948,14 +941,15 @@
       U.el('div', { class: 'pw-wrap' }, [passIn, toggle]));
 
     // Honeypot: invisible to people, tempting to bots. Server rejects it if filled.
-    var hp = U.el('input', { type: 'text', name: 'company_website', tabindex: '-1', autocomplete: 'off', 'aria-hidden': 'true' });
+    // (Named so browser autofill does not recognise it as a form field to fill in.)
+    var hp = U.el('input', { type: 'text', name: 'zc_extra_note', tabindex: '-1', autocomplete: 'off', 'aria-hidden': 'true' });
     form.appendChild(U.el('div', { class: 'hp-field', 'aria-hidden': 'true' }, [U.el('label', { text: 'Leave this empty' }), hp]));
 
     var checks = signupChecks({
-      school_name: function () { return schoolIn.value; }, contact_name: function () { return nameIn.value; },
+      school_name: function () { return schoolIn.value; },
       email: function () { return emailIn.value; }, phone: composedPhone, password: function () { return passIn.value; }
     });
-    var order = ['school_name', 'contact_name', 'email', 'phone', 'password'];
+    var order = ['school_name', 'email', 'phone', 'password'];
     order.forEach(function (k) {
       inputs[k].addEventListener('blur', function () { if (inputs[k].value) setError(k, checks[k]()); });
       // Clear a shown error as soon as the person starts fixing it.
@@ -983,7 +977,20 @@
     termsBox.addEventListener('change', function () { if (termsBox.checked) termsErr.textContent = ''; });
 
     var btn = U.el('button', { class: 'btn gold', type: 'submit', text: 'Create my school' });
+    form.appendChild(alertBox);
     form.appendChild(btn);
+
+    // Show a message next to the button and bring it into view.
+    function showAlert(msg, stayPut) {
+      alertBox.textContent = msg; alertBox.style.display = 'block';
+      if (stayPut) return;
+      try { alertBox.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) { /* older browser: message is still shown */ }
+    }
+    // Bring a box that needs fixing into view, so the red border can actually be seen.
+    function goTo(input) {
+      try { input.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) { /* ignore */ }
+      input.focus({ preventScroll: true });
+    }
 
     form.addEventListener('submit', function (e) {
       e.preventDefault();
@@ -991,11 +998,11 @@
       var firstBad = null;
       order.forEach(function (k) { var m = checks[k](); setError(k, m); if (m && !firstBad) firstBad = k; });
       if (!termsBox.checked) { termsErr.textContent = 'Please tick the box to accept the Terms of Service and Privacy Notice.'; if (!firstBad) termsBox.focus(); }
-      if (firstBad) { inputs[firstBad].focus(); return; }
-      if (!termsBox.checked) return;
+      if (firstBad) { showAlert(checks[firstBad](), true); goTo(inputs[firstBad]); return; }
+      if (!termsBox.checked) { showAlert('Please tick the box to accept the Terms of Service and Privacy Notice.'); return; }
       var payload = {
         accept_terms: true,
-        school_name: schoolIn.value.replace(/\s+/g, ' ').trim(), contact_name: nameIn.value.replace(/\s+/g, ' ').trim(),
+        school_name: schoolIn.value.replace(/\s+/g, ' ').trim(),
         email: emailIn.value.trim(), phone: composedPhone(), password: passIn.value, company_website: hp.value
       };
       btn.disabled = true; btn.textContent = 'Creating your school…';
@@ -1011,8 +1018,14 @@
         btn.disabled = false; btn.textContent = 'Create my school';
         var f = err && err.body && err.body.fields, firstField = null;
         if (f) order.forEach(function (k) { if (f[k]) { setError(k, f[k]); if (!firstField) firstField = k; } });
-        // Show the headline message unless it only repeats a field error.
-        if (!f || err.status !== 400) { alertBox.textContent = (err && err.message) || 'Something went wrong. Please try again.'; alertBox.style.display = 'block'; }
+        // ALWAYS say something beside the button, with the technical code so it can be reported.
+        var msg = (err && err.message) || 'Something went wrong. Please try again.';
+        if (f) {
+          var other = Object.keys(f).filter(function (k) { return order.indexOf(k) < 0; }).map(function (k) { return f[k]; });
+          if (other.length) msg = other.join(' ');
+          else if (firstField) msg = f[firstField];
+        }
+        showAlert(msg + (err && err.status ? '  (code ' + err.status + ')' : ''));
         if (firstField) inputs[firstField].focus();
       });
     });

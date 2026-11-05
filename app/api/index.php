@@ -20,7 +20,7 @@
  *
  * Routes (via ?r=...):
  *   POST   ?r=auth/login   {username,password[,school_id]}  -> {token,...}
- *   POST   ?r=register     {school_name,contact_name,email,phone,password}
+ *   POST   ?r=register     {school_name,email,phone,password,accept_terms[,contact_name]}
  *                          PUBLIC self-service signup: creates the school on a
  *                          free trial + its Admin login, returns a session token
  *   GET    ?r={collection}                 list   (this school)
@@ -516,7 +516,10 @@ if ($head === 'register' && $method === 'POST') {
     if (!empty($b['company_website'])) { out(['error' => 'We could not create your account. Please try again.'], 400); }
 
     list($schoolName, $e1) = valid_school_name($b['school_name'] ?? '');
-    list($contactName, $e2) = valid_person_name($b['contact_name'] ?? '');
+    // A contact person is OPTIONAL: signup needs only the school's own details (name, email,
+    // phone, password). If none is given the Administrator is simply "School Administrator".
+    $contactName = ''; $e2 = null;
+    if (trim((string)($b['contact_name'] ?? '')) !== '') { list($contactName, $e2) = valid_person_name($b['contact_name']); }
     list($email, $e3)       = valid_email_addr($b['email'] ?? '');
     list($phone, $e4)       = valid_phone_no($b['phone'] ?? '', true);
     list($password, $e5)    = valid_new_password($b['password'] ?? '', $email, $schoolName);
@@ -551,7 +554,7 @@ if ($head === 'register' && $method === 'POST') {
     try {
         db_seed_school($pdo, $sid, db_load_seed(), $schoolName, [
             'demo' => false,
-            'admin' => ['name' => $contactName, 'username' => 'admin', 'password' => $password, 'must_change' => false],
+            'admin' => ['name' => $contactName !== '' ? $contactName : 'School Administrator', 'username' => 'admin', 'password' => $password, 'must_change' => false],
             'email' => $email, 'phone' => $phone, 'contact_name' => $contactName,
             'created_via' => 'self-signup', 'trial_days' => $trialDays,
         ]);
@@ -568,7 +571,7 @@ if ($head === 'register' && $method === 'POST') {
     // Best-effort heads-up to the developer; never allowed to fail the signup.
     if (!empty($cfg['NOTIFY_EMAIL'])) {
         @mail($cfg['NOTIFY_EMAIL'], 'New Zetclass signup: ' . $schoolName,
-              "School: $schoolName\nContact: $contactName\nEmail: $email\nPhone: $phone\nAddress: zetclass.com/$sid\n",
+              "School: $schoolName\nContact: " . ($contactName !== '' ? $contactName : '(not given)') . "\nEmail: $email\nPhone: $phone\nAddress: zetclass.com/$sid\n",
               'Content-Type: text/plain; charset=utf-8');
     }
 
@@ -582,7 +585,7 @@ if ($head === 'register' && $method === 'POST') {
         'trial_ends_at' => gmdate('Y-m-d', time() + ($trialDays * 86400)),
         'trial_days'    => $trialDays,
         'user' => [
-            'id' => 'u-admin', 'name' => $contactName, 'username' => 'admin', 'role' => 'Admin',
+            'id' => 'u-admin', 'name' => $contactName !== '' ? $contactName : 'School Administrator', 'username' => 'admin', 'role' => 'Admin',
             'staff_id' => 'SF0001', 'class_ids' => [], 'linked_student_ids' => [], 'must_change_password' => false,
         ],
     ], 201);

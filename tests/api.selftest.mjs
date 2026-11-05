@@ -60,14 +60,14 @@ function callWithHost(route, body, hostHeader) {
   });
 }
 
-const good = (n) => ({ school_name: n.school, contact_name: n.person || 'Ama Mensah', email: n.email, phone: n.phone, password: n.pw || 'Sunrise-2026!', accept_terms: true });
+const good = (n) => ({ school_name: n.school, ...(n.person === null ? {} : { contact_name: n.person || 'Ama Mensah' }), email: n.email, phone: n.phone, password: n.pw || 'Sunrise-2026!', accept_terms: true });
 
 // ---------------------------------------------------------------
 section('1. Signup validation (every required field, plain-English errors)');
 {
   let r = await call('POST', 'register', {});
   check('empty form is rejected (400)', r.status === 400);
-  check('…and every required field is named', ['school_name', 'contact_name', 'email', 'phone', 'password'].every(k => r.json.fields && r.json.fields[k]), r.json);
+  check('…and every required field is named', ['school_name', 'email', 'phone', 'password'].every(k => r.json.fields && r.json.fields[k]) && !(r.json.fields && r.json.fields.contact_name), r.json);
   r = await call('POST', 'register', good({ school: 'Test A', email: 'not-an-email', phone: '+233241234567' }));
   check('bad email is rejected', r.status === 400 && r.json.fields.email, r.json);
   r = await call('POST', 'register', good({ school: 'Test A', email: 'a@b.co', phone: '12' }));
@@ -95,7 +95,7 @@ section('2. Signup happy path + many schools in ONE database');
 const A = { school: "St. Mary's Basic School", email: 'Head@StMarys.example', phone: '+233 24 123 4567', person: 'Ama Mensah' };
 const B = { school: "St. Mary's Basic School", email: 'other@school.example', phone: '+233205550001', person: 'Kofi Boateng' }; // same NAME, different school
 const C = { school: 'Bright Future Academy', email: 'bf@school.example', phone: '+233205550002', person: 'Esi Owusu' };
-const D = { school: 'Tamper Test School', email: 'tamper@school.example', phone: '+233205550003', person: 'Test Person' };
+const D = { school: 'Tamper Test School', email: 'tamper@school.example', phone: '+233205550003', person: null };   // D signs up with NO contact person (it is optional)
 let sa, sb, sc, sd;
 {
   sa = await call('POST', 'register', good(A));
@@ -109,7 +109,9 @@ let sa, sb, sc, sd;
   sc = await call('POST', 'register', good(C));
   check('school C created', sc.status === 201 && sc.json.school_id === 'bright-future-academy', sc.json);
   sd = await call('POST', 'register', good(D));
-  check('school D created', sd.status === 201, sd.json);
+  check('school D created with NO contact person (name is optional at signup)', sd.status === 201 && sd.json.user && sd.json.user.name === 'School Administrator', sd.json);
+  const sdUsers = await call('GET', 'users', null, sd.json.token);
+  check('D: its Administrator login is simply named “School Administrator”', Array.isArray(sdUsers.json) && sdUsers.json[0] && sdUsers.json[0].name === 'School Administrator', sdUsers.json);
   let d = await call('POST', 'register', good({ ...C, school: 'Another One', phone: '+233200000009' }));
   check('same EMAIL twice is blocked (one trial per email) — 409', d.status === 409, d);
   d = await call('POST', 'register', good({ ...C, school: 'Another Two', email: 'new@school.example' }));

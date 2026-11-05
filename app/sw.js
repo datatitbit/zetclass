@@ -10,7 +10,7 @@
  * ============================================================ */
 'use strict';
 
-var CACHE_VERSION = 'v20261106';
+var CACHE_VERSION = 'v20261108';
 var CACHE_NAME = 'zetclass-' + CACHE_VERSION;
 
 // Minimum shell needed to boot offline. Everything else is cached
