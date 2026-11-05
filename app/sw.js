@@ -1,5 +1,5 @@
-﻿/* ============================================================
- * sw.js â€” service worker for Zetclass (hand-rolled, no libraries)
+/* ============================================================
+ * sw.js — service worker for Zetclass (hand-rolled, no libraries)
  * Makes the app installable + usable offline:
  *   - Navigation: network-first (always get the latest code when online),
  *     fall back to the cached page when offline.
@@ -10,7 +10,7 @@
  * ============================================================ */
 'use strict';
 
-var CACHE_VERSION = 'v20261122';
+var CACHE_VERSION = 'v20261123';
 var CACHE_NAME = 'zetclass-' + CACHE_VERSION;
 
 // Minimum shell needed to boot offline. Everything else is cached
