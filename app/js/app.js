@@ -777,7 +777,7 @@
     var saved = {};
     try { saved = JSON.parse(localStorage.getItem('zc_last_login') || '{}') || {}; } catch (e) { saved = {}; }
 
-    // 1. SCHOOL: the full name, with suggestions as the person types. (The school's web address works too.)
+    // 1. SCHOOL: the full name, with suggestions as the person types. (The school's portal address works too.)
     var schoolInput = U.el('input', { type: 'text', value: App.schoolSlugLabel || App.schoolIdHint || saved.school || '', placeholder: 'Start typing your school’s full name', autocomplete: 'off', autocapitalize: 'words', spellcheck: 'false', list: 'school-suggest' });
     var suggest = U.el('datalist', { id: 'school-suggest' });
     var timer = null, lastQ = '';
@@ -1166,24 +1166,24 @@
     // YOUR SCHOOL'S WEB ADDRESS: zetclass.com/<address>. Three free suggestions come from the school name
     // (main name · full name without hyphens · main name + details); the person may pick one or type their own.
     // A live check says whether it is free and allowed, and a tick box records their agreement.
-    section('Your school’s web address');
+    section('Your school’s portal address');
     var slugIn = U.el('input', { type: 'text', maxlength: '40', autocapitalize: 'none', spellcheck: 'false', autocomplete: 'off', placeholder: 'e.g. st-marys' });
     var slugPrefix = U.el('span', { class: 'slug-prefix', text: 'zetclass.com/' });
     var slugStatus = U.el('div', { class: 'slug-status', 'aria-live': 'polite' });
     var slugChips = U.el('div', { class: 'slug-chips' });
     var slugTouched = false, slugOk = false, slugTimer = null, sugTimer = null, lastSugKey = '';
-    var slugField = addField('school_id', 'Web address', slugIn, '', U.el('div', { class: 'slug-group' }, [slugPrefix, slugIn]), true);
+    var slugField = addField('school_id', 'Portal address', slugIn, '', U.el('div', { class: 'slug-group' }, [slugPrefix, slugIn]), true);
     slugField.classList.add('span2');
     slugField.insertBefore(U.el('div', { class: 'slug-label', text: 'Suggestions (tap one, or type your own below):' }), slugField.children[1]);
     slugField.insertBefore(slugChips, slugField.children[2]);
     slugField.appendChild(slugStatus);
     var urlNote = U.el('div', { class: 'notice-info span2', role: 'note' }, [icon('lock'), U.el('span', {}, [
-      document.createTextNode('This name becomes your school’s web address: '), U.el('b', { class: 'slug-live', text: 'zetclass.com/your-school' }),
+      document.createTextNode('This name becomes your school’s portal address: '), U.el('b', { class: 'slug-live', text: 'zetclass.com/your-school' }),
       document.createTextNode('. You will use it on sign-in links, notices and QR codes, so choose carefully. It cannot be changed later without contacting Zetranova.')])]);
     grid.appendChild(urlNote);
     var urlBox = U.el('input', { type: 'checkbox', id: 'f-confirm_url' });
     var urlErr = U.el('div', { class: 'field-error', id: 'err-confirm_url', 'aria-live': 'polite' });
-    var urlTxt = U.el('span', {}, [document.createTextNode('I agree that “'), U.el('b', { class: 'slug-live-id', text: 'your-school' }), document.createTextNode('” is added to zetclass.com as my school’s web address.'), reqStar()]);
+    var urlTxt = U.el('span', {}, [document.createTextNode('I agree that “'), U.el('b', { class: 'slug-live-id', text: 'your-school' }), document.createTextNode('” is added to zetclass.com as my school’s portal address.'), reqStar()]);
     grid.appendChild(U.el('div', { class: 'field span2' }, [U.el('label', { for: 'f-confirm_url', class: 'check-card' }, [urlBox, urlTxt]), reqNote(true), urlErr]));
     urlBox.addEventListener('change', function () { if (urlBox.checked) urlErr.textContent = ''; });
 
@@ -1265,7 +1265,7 @@
     checks.locality = function () { return localityIn.value.trim().length >= 2 ? '' : 'Please enter your town or area.'; };
     checks.school_id = function () {
       var v = slugIn.value;
-      if (!v) return 'Please choose your school’s web address.';
+      if (!v) return 'Please choose your school’s portal address.';
       if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(v) || v.length < 3 || v.length > 40) return 'Use 3 to 40 letters, numbers or hyphens, with no spaces.';
       return '';
     };
@@ -1412,16 +1412,16 @@
       return U.el('div', { class: 'welcome-row' }, [U.el('div', { class: 'welcome-label', text: label }), U.el('div', { class: 'welcome-value', text: value })]);
     }
     var box = U.el('div', { class: 'welcome-box' }, [
-      row('Your school’s web address', address),
+      row('Your school’s portal address', address),
       row('Your username', 'admin'),
       row('Your password', 'the one you just chose'),
       row('Free trial ends', U.fmtDate(res.trial_ends_at))
     ]);
     card.appendChild(box);
-    card.appendChild(U.el('p', { class: 'help', text: 'Save these details. Next time, go to your web address and sign in with the username and password above.' }));
+    card.appendChild(U.el('p', { class: 'help', text: 'Save these details. Next time, go to your portal address and sign in with the username and password above.' }));
     if (res.sample_data) card.appendChild(U.el('p', { class: 'help', text: 'We added a few sample records in every area so you can explore. Remove them any time with the “Remove sample data” button on your dashboard.' }));
 
-    var copyText = 'Zetclass — ' + res.school_name + '\nWeb address: ' + address + '\nUsername: admin\nFree trial ends: ' + res.trial_ends_at;
+    var copyText = 'Zetclass — ' + res.school_name + '\nPortal address: ' + address + '\nUsername: admin\nFree trial ends: ' + res.trial_ends_at;
     var copyBtn = U.el('button', { class: 'btn ghost', type: 'button', text: 'Copy these details', onclick: function () {
       var done = function () { copyBtn.textContent = 'Copied ✓'; setTimeout(function () { copyBtn.textContent = 'Copy these details'; }, 2000); };
       if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(copyText).then(done, function () { U.toast('Could not copy — please write the address down.', 'warn'); });
@@ -1467,7 +1467,7 @@
     var form = U.el('form', { class: 'form login-form', novalidate: true });
     form.appendChild(alertBox);
     form.appendChild(U.el('div', { class: 'field' }, [U.el('label', { for: 'f-school', text: 'School address' }), schoolIn,
-      U.el('div', { class: 'help', text: 'The last part of your school’s web address, e.g. st-marys-school' })]));
+      U.el('div', { class: 'help', text: 'The last part of your school’s portal address, e.g. st-marys-school' })]));
     form.appendChild(U.el('div', { class: 'field' }, [U.el('label', { for: 'f-user', text: 'Username' }), userIn,
       U.el('div', { class: 'help', text: 'Administrators usually use “admin”.' })]));
     form.appendChild(btn);

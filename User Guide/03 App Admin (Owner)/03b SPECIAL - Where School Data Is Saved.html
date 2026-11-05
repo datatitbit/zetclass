@@ -12,7 +12,7 @@
 <dt>Server / hosting</dt><dd>A computer that is always on and connected to the internet. Yours is rented from Namecheap.</dd>
 <dt>cPanel</dt><dd>The hosting control panel where you manage files, databases and email.</dd>
 <dt>API</dt><dd>The "receptionist": the part of Zetclass that fetches and saves records for the app.</dd>
-<dt>School id</dt><dd>The short name that labels one school's records, e.g. <code>st-marys-basic-school</code>. Also the end of its web address.</dd>
+<dt>School id</dt><dd>The short name that labels one school's records, e.g. <code>st-marys-basic-school</code>. Also the end of its portal address.</dd>
 <dt>Table</dt><dd>One drawer in the filing cabinet, e.g. the list of schools.</dd>
 <dt>Hash</dt><dd>A password scrambled one way, so it can be checked but never read back.</dd>
 <dt>Token</dt><dd>A signed pass the browser carries after sign-in. It names the person, their school and their user type.</dd>
@@ -40,7 +40,7 @@
 <h2>What is inside the database</h2>
 <div class="wrap"><table>
 <tr><th>Table (drawer)</th><th>What it holds</th></tr>
-<tr><td><b>schools</b></td><td>One row per school: name, web address, plan, trial and paid dates, status, contact details, country/region/district/locality, licence number and Verified mark, your private notes.</td></tr>
+<tr><td><b>schools</b></td><td>One row per school: name, portal address, plan, trial and paid dates, status, contact details, country/region/district/locality, licence number and Verified mark, your private notes.</td></tr>
 <tr><td><b>documents</b></td><td>The school's day-to-day records, each tagged with the school id: pupils, parents, staff, <b>login accounts</b>, classes, attendance, scores, fees and payments, stock, accounts and more.</td></tr>
 <tr><td><b>singletons</b></td><td>One-of-a-kind items per school: the school profile (including its logo, signature and stamp images), academic year and term, grading and report settings, access settings.</td></tr>
 <tr><td><b>meta_seq</b></td><td>Counters that make the next pupil or staff number (e.g. ST0042).</td></tr>

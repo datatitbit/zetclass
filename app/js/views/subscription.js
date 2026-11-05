@@ -88,7 +88,7 @@
     var verb = st.state === 'trialing' ? 'subscribe' : 'renew';
     var msg = 'Hello Zetranova, I would like to ' + verb + ' to Zetclass.\n'
       + 'School: ' + (st.school || (App.ctx.school && App.ctx.school.name) || '') + '\n'
-      + 'Web address: ' + address + '\n'
+      + 'Portal address: ' + address + '\n'
       + 'Plan I want (Basic / Growth / Premium): \n'
       + 'Number of pupils: ';
     var contact = global.ZETCLASS_CONTACT || {};

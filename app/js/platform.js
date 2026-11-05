@@ -304,10 +304,10 @@
     function row(l, v, mono) {
       return el('div', { style: 'margin:.45rem 0' }, [el('div', { class: 'muted', style: 'font-size:.75rem', text: l }), el('div', { style: 'font-weight:700;word-break:break-all;' + (mono ? 'font-family:monospace;font-size:1.15rem;letter-spacing:.04em' : ''), text: v })]);
     }
-    body.appendChild(row('Web address', address));
+    body.appendChild(row('Portal address', address));
     body.appendChild(row('Username', res.username || 'admin'));
     body.appendChild(row('Temporary password', res.temp_password, true));
-    var text = 'Zetclass sign-in details' + (schoolRow && schoolRow.name ? ' for ' + schoolRow.name : '') + '\nWeb address: ' + address + '\nUsername: ' + (res.username || 'admin') + '\nTemporary password: ' + res.temp_password + '\n(You will be asked to choose your own password when you sign in.)';
+    var text = 'Zetclass sign-in details' + (schoolRow && schoolRow.name ? ' for ' + schoolRow.name : '') + '\nPortal address: ' + address + '\nUsername: ' + (res.username || 'admin') + '\nTemporary password: ' + res.temp_password + '\n(You will be asked to choose your own password when you sign in.)';
     var actions = el('div', { class: 'btn-row', style: 'margin-top:.8rem' });
     var copyBtn = el('button', { class: 'btn', type: 'button', text: 'Copy details', onclick: function () { copyToClipboard(text, copyBtn, 'Copy details'); } });
     actions.appendChild(copyBtn);
@@ -332,7 +332,7 @@
     // but stop the moment they touch the ID field themselves — their edit
     // always wins over the suggestion.
     var idTouched = false;
-    function updatePreview() { preview.textContent = 'Web address: ' + global.location.origin + '/' + (idInput.value || '…'); }
+    function updatePreview() { preview.textContent = 'Portal address: ' + global.location.origin + '/' + (idInput.value || '…'); }
     idInput.addEventListener('input', function () { idTouched = true; updatePreview(); });
     nameInput.addEventListener('input', function () { if (!idTouched) idInput.value = slugify(nameInput.value); updatePreview(); });
     updatePreview();
@@ -340,7 +340,7 @@
     body.appendChild(field('Contact person', contactInput, 'Becomes the school’s first Administrator.'));
     body.appendChild(field('Email', emailInput));
     body.appendChild(field('Phone / WhatsApp', phoneInput));
-    body.appendChild(field('Web address', idInput, 'Lowercase letters, numbers and hyphens only. A few words (admin, pricing, api…) are reserved.'));
+    body.appendChild(field('Portal address', idInput, 'Lowercase letters, numbers and hyphens only. A few words (admin, pricing, api…) are reserved.'));
     body.appendChild(preview);
     body.appendChild(el('label', { class: 'check-label', style: 'display:flex;gap:.45rem;align-items:center;margin-top:.6rem' }, [demoBox, document.createTextNode('Fill with sample demo pupils and demo logins (for training only)')]));
     body.appendChild(el('div', { class: 'help', text: 'A normal school starts empty with one Administrator login and a 30-day free trial. You get a one-time temporary password to hand over.' }));
@@ -550,7 +550,7 @@
       return section('Contact & notes', kids);
     }
 
-    /* --- Edit name / contact person / email / phone (the web address cannot change) --- */
+    /* --- Edit name / contact person / email / phone (the portal address cannot change) --- */
     function openEditDetails() {
       var form = el('div', { class: 'form' });
       var nameI = el('input', { type: 'text', maxlength: '120', value: row.name || '' });
@@ -575,7 +575,7 @@
       form.appendChild(field('District', districtI));
       form.appendChild(field('Locality / area', localityI));
       form.appendChild(field('Postal address', postalI));
-      form.appendChild(el('div', { class: 'help', text: 'The web address ' + global.location.origin + '/' + row.id + ' cannot be changed (all records and logins are tied to it). To use a different address, add a new school and delete this one.' }));
+      form.appendChild(el('div', { class: 'help', text: 'The portal address ' + global.location.origin + '/' + row.id + ' cannot be changed (all records and logins are tied to it). To use a different address, add a new school and delete this one.' }));
       var e = errBox(); form.appendChild(e);
       U.modal({
         title: 'Edit school details', body: form,
