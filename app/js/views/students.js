@@ -166,6 +166,7 @@
         tools.appendChild(el('button', { class: 'btn gold', text: '⤒ Upload new admissions', onclick: function () { uploadAdmissions(classes, refresh); } }));
       }
       panel.appendChild(tools);
+      if (canEdit) panel.appendChild(el('div', { class: 'help', style: 'margin:-.3rem 0 .8rem', text: 'The templates always match your Admission Form (Settings → Admission Form). If you add, rename or remove a field there, download a fresh template.' }));
 
       if (canEdit) panel.appendChild(updateExistingCard(students, classes, refresh));
       panel.appendChild(profileDownloadCard(students, classes));
@@ -566,25 +567,179 @@
     return classes[idx + 1] || null;
   }
 
-  /* ---------- Bulk admissions ---------- */
+  /* ---------- Bulk admissions + updates: templates follow the Admission Form ----------
+   * The spreadsheet columns are built from the school's CURRENT admission form (Settings → Admission Form):
+   * the core fields (with any labels the Admin has renamed) plus every custom field, in the same order as
+   * the form. Add, rename or remove a field there, download a fresh template, and the columns match.
+   * On upload, columns are matched by their header text (or the older technical name, so earlier templates
+   * still work). The two rows that start with "#" (GUIDE and EXAMPLE) are skipped on upload. */
+  function secIndex(k) {
+    var i = ADMISSION_SECTIONS.findIndex(function (s) { return s.key === k; });
+    return i < 0 ? 99 : i;
+  }
+  function customDefs() {
+    return admissionCfg().filter(function (d) { return !d.system && d.type !== 'siblings'; })
+      .map(function (d, i) { return { d: d, i: i }; })
+      .sort(function (a, b) { return (secIndex(a.d.section) - secIndex(b.d.section)) || (a.i - b.i); })
+      .map(function (x) { return x.d; });
+  }
+  function normHeader(h) { return String(h == null ? '' : h).replace(/^﻿/, '').replace(/\*/g, '').replace(/\s+/g, ' ').trim().toLowerCase(); }
+  function hintFor(d) {
+    if (d.type === 'number') return 'Number';
+    if (d.type === 'date') return 'Date, e.g. 2018-05-01';
+    if (d.type === 'checkbox') return 'Yes or No';
+    if (d.type === 'select' && d.options && d.options.length) return 'Choose: ' + d.options.join(' | ');
+    return 'Text';
+  }
+  function exampleFor(d) {
+    if (d.type === 'number') return '10';
+    if (d.type === 'date') return '2018-05-01';
+    if (d.type === 'checkbox') return 'Yes';
+    if (d.type === 'select' && d.options && d.options.length) return d.options[0];
+    return 'Example';
+  }
+  // mode 'new' = new-admissions template; 'update' = update-existing template.
+  function admissionColumns(classes, mode) {
+    var cf = {
+      first_name: coreField('first_name', 'First name', true), last_name: coreField('last_name', 'Last name', true),
+      gender: coreField('gender', 'Gender', false), dob: coreField('dob', 'Date of birth', false),
+      class_id: coreField('class_id', 'Class', false), status: coreField('status', 'Status', false),
+      admitted_on: coreField('admitted_on', 'Admitted on', false)
+    };
+    var cls0 = classes[0] ? classes[0].name : 'Basic 1';
+    var cols = [];
+    if (mode === 'update') cols.push({ key: 'student_id', header: 'student_id', required: true, type: 'text', core: true, hint: 'Do not change', example: 'ST0001' });
+    cols.push({ key: 'first_name', header: cf.first_name.label, required: true, type: 'text', core: true, hint: 'Text', example: 'Ama' });
+    cols.push({ key: 'last_name', header: cf.last_name.label, required: true, type: 'text', core: true, hint: 'Text', example: 'Mensah' });
+    cols.push({ key: 'gender', header: cf.gender.label, required: cf.gender.required, type: 'select', options: ['M', 'F'], core: true, hint: 'M or F', example: 'F' });
+    cols.push({ key: 'dob', header: cf.dob.label, required: cf.dob.required, type: 'date', core: true, hint: 'Date, e.g. 2018-05-01', example: '2018-05-01' });
+    cols.push({ key: 'class_name', header: cf.class_id.label, required: true, type: 'text', core: true, hint: 'Exact class name, e.g. ' + cls0, example: cls0 });
+    if (mode === 'update') {
+      cols.push({ key: 'status', header: cf.status.label, required: false, type: 'select', options: ['active', 'withdrawn', 'completed'], core: true, hint: 'active, withdrawn or completed', example: 'active' });
+      cols.push({ key: 'admitted_on', header: cf.admitted_on.label, required: false, type: 'date', core: true, hint: 'Date, e.g. 2024-09-02', example: '2024-09-02' });
+    } else {
+      cols.push({ key: 'parent_name', header: 'Parent / Guardian name', required: false, type: 'text', core: true, hint: 'Text', example: 'Kofi Mensah' });
+      cols.push({ key: 'parent_phone', header: 'Parent / Guardian phone', required: false, type: 'text', core: true, hint: 'With country code', example: '+233241234567' });
+    }
+    customDefs().forEach(function (d) {
+      cols.push({ key: d.key, header: d.label, required: !!d.required, type: d.type, options: d.options || [], core: false, hint: hintFor(d), example: exampleFor(d) });
+    });
+    // Headers must be unique so each column can be told apart.
+    var seen = {};
+    cols.forEach(function (c) {
+      var h = c.header, n = 2;
+      while (seen[normHeader(h)]) { h = c.header + ' (' + (n++) + ')'; }
+      seen[normHeader(h)] = true; c.header = h;
+    });
+    return cols;
+  }
+  function headerText(c) { return c.header + (c.required ? ' *' : ''); }
+
+  // Match the file's header row to the current columns; drop the "#" helper rows.
+  function prepareUpload(fileRows, cols) {
+    if (!fileRows.length) return { rows: [], present: {}, notes: [], lines: [] };
+    var byNorm = {};
+    cols.forEach(function (c) { byNorm[normHeader(c.header)] = c.key; byNorm[normHeader(c.key)] = c.key; });
+    var present = {}, unknown = [];
+    var head = fileRows[0].map(function (h) {
+      var k = byNorm[normHeader(h)];
+      if (k) { present[k] = true; return k; }
+      if (String(h).trim() !== '') unknown.push(String(h).replace(/\s*\*\s*$/, '').trim());
+      return String(h).trim();
+    });
+    var data = [], lines = [];
+    fileRows.slice(1).forEach(function (r, i) { if (String(r[0] || '').trim().charAt(0) !== '#') { data.push(r); lines.push(i + 2); } });   // lines[] = the row's real line in the file
+    var notes = [];
+    if (unknown.length) notes.push('Ignored column(s) that are not on your Admission Form: ' + unknown.join(', ') + '.');
+    var absent = cols.filter(function (c) { return !c.core && !present[c.key]; }).map(function (c) { return c.header; });
+    if (absent.length) notes.push('Your file has no column for: ' + absent.join(', ') + '. Those stay empty. Download a fresh template to include them.');
+    return { rows: [head].concat(data), present: present, notes: notes, lines: lines };
+  }
+  // Report problem rows at their real line in the file (the # helper rows were removed before checking).
+  function fixLines(res, prep) {
+    (res.rejected || []).forEach(function (rj) { var k = rj.line - 2; if (rj.line > 1 && prep.lines[k]) rj.line = prep.lines[k]; });
+    return res;
+  }
+  // The "Missing columns" message names the columns the way the template does.
+  function friendlyMissing(res, cols) {
+    if (res.rejected && res.rejected[0] && /^Missing columns/.test(res.rejected[0].why)) {
+      res.rejected[0].why = res.rejected[0].why.replace(/[a-z_]+/g, function (k) {
+        var c = cols.filter(function (x) { return x.key === k; })[0]; return c ? c.header : k;
+      }).replace('columns:', 'columns (download a fresh template):');
+    }
+    return res;
+  }
+
+  function parseDateCell(s) {
+    s = String(s || '').trim();
+    if (!s) return { ok: true, value: '' };
+    var y, mo, d, m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(s);
+    if (m) { y = +m[1]; mo = +m[2]; d = +m[3]; }
+    else { m = /^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/.exec(s); if (m) { d = +m[1]; mo = +m[2]; y = +m[3]; } }   // day first, as in Ghana
+    if (!m) return { ok: false };
+    var dt = new Date(Date.UTC(y, mo - 1, d));
+    if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) return { ok: false };
+    return { ok: true, value: y + '-' + (mo < 10 ? '0' : '') + mo + '-' + (d < 10 ? '0' : '') + d };
+  }
+  function convertCell(col, raw) {
+    var s = String(raw == null ? '' : raw).trim();
+    if (col.type === 'checkbox') {
+      if (/^(yes|y|true|1|x|✓)$/i.test(s)) return { ok: true, value: true };
+      if (s === '' || /^(no|n|false|0)$/i.test(s)) return { ok: true, value: false };
+      return { ok: false, error: col.header + ': use Yes or No' };
+    }
+    if (s === '') return { ok: true, value: '' };
+    if (col.key === 'gender') { if (/^male$/i.test(s)) s = 'M'; else if (/^female$/i.test(s)) s = 'F'; }
+    if (col.type === 'number') { var n = Number(s.replace(/,/g, '')); return isFinite(n) ? { ok: true, value: n } : { ok: false, error: col.header + ': "' + s + '" is not a number' }; }
+    if (col.type === 'date') { var p = parseDateCell(s); return p.ok ? p : { ok: false, error: col.header + ': "' + s + '" is not a date (use 2018-05-01)' }; }
+    if (col.type === 'select' && col.options && col.options.length) {
+      var hit = col.options.filter(function (o) { return String(o).toLowerCase() === s.toLowerCase(); })[0];
+      return hit != null ? { ok: true, value: hit } : { ok: false, error: col.header + ': "' + s + '" is not one of ' + col.options.join(' | ') };
+    }
+    return { ok: true, value: s };
+  }
+  // Reads one spreadsheet row using the columns that are in the file. Returns the core values, the custom-field
+  // values (destined for student.extra) and any problems. keepBlank: keep empty cells (updates clear values).
+  function readRow(row, cols, present, keepBlank) {
+    var errs = [], out = {}, extra = {};
+    cols.forEach(function (c) {
+      if (!present[c.key]) return;
+      var r = convertCell(c, row[c.key]);
+      if (!r.ok) { errs.push(r.error); return; }
+      var empty = r.value === '' || (c.type === 'checkbox' && r.value !== true);
+      if (c.required && empty) { errs.push(c.header + ' is required'); return; }
+      if (c.core) out[c.key] = r.value;
+      else if (keepBlank || !empty) extra[c.key] = r.value;
+    });
+    return { errs: errs, out: out, extra: extra };
+  }
+
   function downloadTemplate(classes) {
-    var rows = [['first_name', 'last_name', 'gender', 'dob', 'class_name', 'parent_name', 'parent_phone']];
-    rows.push(['Sample', 'Pupil', 'F', '2018-05-01', classes[0] ? classes[0].name : 'Basic 1', 'Sample Parent', '+233...']);
+    var cols = admissionColumns(classes, 'new');
+    var rows = [
+      cols.map(headerText),
+      cols.map(function (c, i) { return (i === 0 ? '#GUIDE ' : '') + c.hint; }),
+      cols.map(function (c, i) { return (i === 0 ? '#EXAMPLE ' : '') + c.example; })
+    ];
     Bulk.download('admissions-template.csv', rows);
-    U.toast('Template downloaded. Fill it and upload.');
+    U.toast('Template downloaded. It matches your current Admission Form. Fill it (delete the two # rows), then upload.');
   }
   function uploadAdmissions(classes, done) {
     Bulk.pickFile().then(function (file) {
       var rules = App.ctx.idRules;
-      var res = Bulk.processUpload(file.rows, ['first_name', 'last_name', 'class_name'], function (row) {
-        var errs = [];
-        if (!row.first_name) errs.push('first_name missing');
-        if (!row.last_name) errs.push('last_name missing');
+      var cols = admissionColumns(classes, 'new');
+      var prep = prepareUpload(file.rows, cols);
+      var res = Bulk.processUpload(prep.rows, ['first_name', 'last_name', 'class_name'], function (row) {
+        var rr = readRow(row, cols, prep.present, false);
+        var errs = rr.errs.slice();
         var cls = classes.filter(function (c) { return c.name.toLowerCase() === (row.class_name || '').toLowerCase(); })[0];
-        if (!cls) errs.push('unknown class "' + row.class_name + '"');
+        if (!cls && String(row.class_name || '').trim()) errs.push('unknown class "' + row.class_name + '"');
         if (errs.length) return { ok: false, errors: errs };
-        return { ok: true, value: { first_name: row.first_name, last_name: row.last_name, gender: row.gender || '', dob: row.dob || '', class_id: cls.id, parent_name: row.parent_name || '', parent_phone: row.parent_phone || '', status: 'active', admitted_on: U.todayISO() } };
+        var v = { first_name: rr.out.first_name, last_name: rr.out.last_name, gender: rr.out.gender || '', dob: rr.out.dob || '', class_id: cls.id, parent_name: rr.out.parent_name || '', parent_phone: rr.out.parent_phone || '', status: 'active', admitted_on: U.todayISO() };
+        if (Object.keys(rr.extra).length) v.extra = rr.extra;
+        return { ok: true, value: v };
       });
+      friendlyMissing(res, cols); fixLines(res, prep); res.notes = prep.notes;
       Bulk.summaryModal('Import admissions', res, function (valid) {
         var i = 0;
         function step() {
@@ -610,7 +765,7 @@
   function updateExistingCard(students, classes, refresh) {
     var card = el('div', { class: 'card' });
     card.appendChild(el('h3', { text: 'Update existing student records' }));
-    card.appendChild(el('div', { class: 'help', text: 'Download a spreadsheet pre-filled with current details for a whole class or a single student, edit the values, then upload it back — matching rows UPDATE the existing record (student_id is the match key and must not change). Use this instead of the admissions template above when correcting or bulk-editing students already on roll.' }));
+    card.appendChild(el('div', { class: 'help', text: 'Download a spreadsheet pre-filled with current details for a whole class or a single student, edit the values, then upload it back — matching rows UPDATE the existing record (student_id is the match key and must not change). Use this instead of the admissions template above when correcting or bulk-editing students already on roll. The columns always match your Admission Form (Settings → Admission Form): if you add or rename a field there, download a fresh template.' }));
     var scopeSel = el('select');
     [['class', 'Whole class'], ['one', 'Single student']].forEach(function (o) { scopeSel.appendChild(el('option', { value: o[0], text: o[1] })); });
     var clsSel = el('select');
@@ -634,30 +789,45 @@
   function downloadUpdateTemplate(students, classes, scope, classId, studentId) {
     var list = scope === 'one' ? students.filter(function (s) { return s.student_id === studentId; }) : students.filter(function (s) { return s.class_id === classId; });
     if (!list.length) return U.toast('No matching student(s) to include.', 'err');
-    var rows = [['student_id', 'first_name', 'last_name', 'gender', 'dob', 'class_name', 'status', 'admitted_on']];
+    var cols = admissionColumns(classes, 'update');
+    var rows = [cols.map(headerText), cols.map(function (c, i) { return (i === 0 ? '#GUIDE ' : '') + c.hint; })];
     list.forEach(function (s) {
       var cls = classes.filter(function (c) { return c.id === s.class_id; })[0];
-      rows.push([s.student_id, s.first_name, s.last_name, s.gender || '', s.dob || '', cls ? cls.name : '', s.status || 'active', s.admitted_on || '']);
+      var core = { student_id: s.student_id, first_name: s.first_name, last_name: s.last_name, gender: s.gender || '', dob: s.dob || '', class_name: cls ? cls.name : '', status: s.status || 'active', admitted_on: s.admitted_on || '' };
+      rows.push(cols.map(function (c) {
+        if (c.core) return core[c.key] == null ? '' : core[c.key];
+        var v = s.extra ? s.extra[c.key] : '';
+        if (c.type === 'checkbox') return v ? 'Yes' : 'No';
+        return v == null ? '' : v;
+      }));
     });
     var label = scope === 'one' ? studentId : ((classes.filter(function (c) { return c.id === classId; })[0] || {}).name || 'class');
     Bulk.download('update-students-' + String(label).replace(/\s+/g, '') + '.csv', rows);
-    U.toast('Template downloaded — keep student_id unchanged, edit the rest, then upload.');
+    U.toast('Template downloaded. Keep student_id unchanged, edit the rest, delete the # row, then upload.');
   }
   function uploadUpdateTemplate(classes, done) {
     Bulk.pickFile().then(function (file) {
       DB.all('students').then(function (allStudents) {
         var byCode = {}; allStudents.forEach(function (s) { byCode[s.student_id] = s; });
-        var res = Bulk.processUpload(file.rows, ['student_id', 'first_name', 'last_name', 'class_name'], function (row) {
-          var errs = [];
+        var cols = admissionColumns(classes, 'update');
+        var prep = prepareUpload(file.rows, cols);
+        var customPresent = cols.some(function (c) { return !c.core && prep.present[c.key]; });
+        var res = Bulk.processUpload(prep.rows, ['student_id', 'first_name', 'last_name', 'class_name'], function (row) {
+          var rr = readRow(row, cols, prep.present, true);
+          var errs = rr.errs.slice();
           var existing = byCode[row.student_id];
           if (!existing) errs.push('unknown student_id ' + row.student_id);
-          if (!row.first_name) errs.push('first_name missing');
-          if (!row.last_name) errs.push('last_name missing');
           var cls = classes.filter(function (c) { return c.name.toLowerCase() === (row.class_name || '').toLowerCase(); })[0];
-          if (!cls) errs.push('unknown class "' + row.class_name + '"');
+          if (!cls && String(row.class_name || '').trim()) errs.push('unknown class "' + row.class_name + '"');
           if (errs.length) return { ok: false, errors: errs };
-          return { ok: true, value: { id: existing.id, first_name: row.first_name, last_name: row.last_name, gender: row.gender || '', dob: row.dob || '', class_id: cls.id, status: row.status || 'active', admitted_on: row.admitted_on || '' } };
+          // Only the columns that are in the file are changed.
+          var patch = { id: existing.id, class_id: cls.id };
+          ['first_name', 'last_name', 'gender', 'dob', 'status', 'admitted_on'].forEach(function (k) { if (prep.present[k]) patch[k] = rr.out[k] == null ? '' : rr.out[k]; });
+          if (prep.present.status && !patch.status) patch.status = 'active';
+          if (customPresent) patch.extra = Object.assign({}, existing.extra || {}, rr.extra);
+          return { ok: true, value: patch };
         });
+        friendlyMissing(res, cols); fixLines(res, prep); res.notes = prep.notes;
         Bulk.summaryModal('Update students', res, function (valid) {
           var ops = valid.map(function (v) { var id = v.id; var patch = Object.assign({}, v); delete patch.id; return DB.update('students', id, patch); });
           Promise.all(ops).then(function () { U.toast('Updated ' + valid.length + ' student record(s).'); done(); });

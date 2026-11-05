@@ -85,6 +85,11 @@
     var body = U.el('div');
     body.appendChild(U.el('p', { html: '<b>' + result.valid.length + '</b> valid row(s) ready to import. <b>' +
       result.rejected.length + '</b> rejected.' }));
+    if (result.notes && result.notes.length) {
+      var nb = U.el('div', { class: 'note' });
+      result.notes.forEach(function (t2) { nb.appendChild(U.el('div', { text: t2 })); });
+      body.appendChild(nb);
+    }
     if (result.rejected.length) {
       var t = U.el('table', { class: 'data' });
       t.appendChild(U.el('thead', {}, [U.el('tr', {}, [U.el('th', { text: 'Line' }), U.el('th', { text: 'Reason' })])]));
