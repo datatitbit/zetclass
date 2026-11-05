@@ -60,7 +60,7 @@ function callWithHost(route, body, hostHeader) {
   });
 }
 
-const good = (n) => ({ school_name: n.school, ...(n.person === null ? {} : { contact_name: n.person || 'Ama Mensah' }), email: n.email, phone: n.phone, password: n.pw || 'Sunrise-2026!', accept_terms: true });
+const good = (n) => ({ school_name: n.school, ...(n.person === null ? {} : { contact_name: n.person || 'Ama Mensah' }), email: n.email, phone: n.phone, password: n.pw || 'Sunrise-2026!', accept_terms: true, confirm_authority: true, country: 'Ghana', ...(n.extra || {}) });
 
 // ---------------------------------------------------------------
 section('1. Signup validation (every required field, plain-English errors)');
@@ -78,12 +78,24 @@ section('1. Signup validation (every required field, plain-English errors)');
     r = await call('POST', 'register', good({ school: 'Test A', email: 'a@b.co', phone: ph }));
     check(`signup refuses ${label} (country code required)`, r.status === 400 && r.json.fields.phone && /country code/i.test(r.json.fields.phone), r.json);
   }
+  r = await call('POST', 'register', { ...good({ school: 'Test A', email: 'a@b.co', phone: '+233241234567' }), confirm_authority: false });
+  check('signup is refused unless the owner / authorised-representative box is ticked', r.status === 400 && r.json.fields.confirm_authority, r.json);
+  r = await call('POST', 'register', { ...good({ school: 'Test A', email: 'a@b.co', phone: '+233241234567' }), country: '' });
+  check('signup is refused without a country', r.status === 400 && r.json.fields.country, r.json);
+  r = await call('POST', 'register', good({ school: 'Test A', email: 'a@b.co', phone: '+233241234567', extra: { whatsapp: '0244' } }));
+  check('a bad WhatsApp number is refused (but WhatsApp may be left empty)', r.status === 400 && r.json.fields.whatsapp && !r.json.fields.phone, r.json);
+  r = await call('POST', 'register', good({ school: 'Test A', email: 'a@b.co', phone: '+233241234567', extra: { region: '<b>x</b>' } }));
+  check('markup in the region is refused', r.status === 400 && r.json.fields.region, r.json);
+  r = await call('POST', 'register', good({ school: 'Test A', email: 'a@b.co', phone: '+233241234567', extra: { website: 'not a website' } }));
+  check('a bad website address is refused (but website may be left empty)', r.status === 400 && r.json.fields.website && !r.json.fields.phone, r.json);
   r = await call('POST', 'register', good({ school: 'X', email: 'a@b.co', phone: '+233241234567' }));
   check('1-letter school name is rejected', r.status === 400 && r.json.fields.school_name, r.json);
   r = await call('POST', 'register', good({ school: 'Test A', email: 'a@b.co', phone: '+233241234567', pw: 'short' }));
   check('short password is rejected', r.status === 400 && r.json.fields.password, r.json);
-  r = await call('POST', 'register', good({ school: 'Test A', email: 'a@b.co', phone: '+233241234567', pw: 'password123' }));
-  check('very common password is rejected', r.status === 400 && r.json.fields.password, r.json);
+  // A WEAK password must not stop a registration (the page only shows a strength tip). Prove it without
+  // creating a school: leave the Terms box unticked, so the ONLY complaint can be the terms, not the password.
+  r = await call('POST', 'register', { ...good({ school: 'Test A', email: 'a@b.co', phone: '+233241234567', pw: 'password123' }), accept_terms: false });
+  check('a weak/common password is NOT refused (only the unticked terms box is)', r.status === 400 && !r.json.fields.password && r.json.fields.accept_terms, r.json);
   r = await call('POST', 'register', { ...good({ school: 'Test A', email: 'a@b.co', phone: '+233241234567' }), company_website: 'http://spam.example' });
   check('honeypot field filled (bot) is rejected', r.status === 400, r.json);
   r = await call('POST', 'register', good({ school: '<script>alert(1)</script>', email: 'a@b.co', phone: '+233241234567' }));
@@ -94,8 +106,8 @@ section('1. Signup validation (every required field, plain-English errors)');
 section('2. Signup happy path + many schools in ONE database');
 const A = { school: "St. Mary's Basic School", email: 'Head@StMarys.example', phone: '+233 24 123 4567', person: 'Ama Mensah' };
 const B = { school: "St. Mary's Junior School", email: 'other@school.example', phone: '+233205550001', person: 'Kofi Boateng' }; // similar name, different school
-const C = { school: 'Bright Future Academy', email: 'bf@school.example', phone: '+233205550002', person: 'Esi Owusu' };
-const D = { school: 'Tamper Test School', email: 'tamper@school.example', phone: '+233205550003', person: null };   // D signs up with NO contact person (it is optional)
+const C = { school: 'Bright Future Academy', email: 'bf@school.example', phone: '+233205550002', person: 'Esi Owusu', extra: { website: 'www.brightfuture.edu.gh', whatsapp: '+233 20 555 0099', region: 'Ashanti', district: 'Kumasi Metropolitan', locality: 'Adum', postal_address: 'P. O. Box 12, Kumasi' } };
+const D = { school: 'Tamper Test School', email: 'tamper@school.example', phone: '+233205550003', person: null, pw: 'abcd1234' };   // D signs up with NO contact person (it is optional)
 let sa, sb, sc, sd;
 {
   sa = await call('POST', 'register', good(A));
@@ -115,7 +127,7 @@ let sa, sb, sc, sd;
   sc = await call('POST', 'register', good(C));
   check('school C created', sc.status === 201 && sc.json.school_id === 'bright-future-academy', sc.json);
   sd = await call('POST', 'register', good(D));
-  check('school D created with NO contact person (name is optional at signup)', sd.status === 201 && sd.json.user && sd.json.user.name === 'School Administrator', sd.json);
+  check('school D created with NO contact person and a weak 8-character password (neither is required to be strong)', sd.status === 201 && sd.json.user && sd.json.user.name === 'School Administrator', sd.json);
   const sdUsers = await call('GET', 'users', null, sd.json.token);
   check('D: its Administrator login is simply named “School Administrator”', Array.isArray(sdUsers.json) && sdUsers.json[0] && sdUsers.json[0].name === 'School Administrator', sdUsers.json);
   let d = await call('POST', 'register', good({ ...C, school: 'Another One', phone: '+233200000009' }));
@@ -196,7 +208,7 @@ for (const [m, route, body] of [
   ['GET', 'schools/list'], ['POST', 'provision', { name: 'Hack' }], ['POST', 'suspend', { school_id: 'bright-future-academy', status: 'suspended' }],
   ['POST', 'trial', { school_id: 'st-marys-basic-school', days: 999 }], ['POST', 'plan', { school_id: 'st-marys-basic-school', plan: 'premium' }],
   ['POST', 'platform/payment', { school_id: 'st-marys-basic-school', days: 365 }], ['POST', 'platform/note', { school_id: 'x', note: 'x' }],
-  ['POST', 'platform/details', { school_id: 'bright-future-academy', name: 'Hijacked School' }],
+  ['POST', 'platform/details', { school_id: 'bright-future-academy', name: 'Hijacked School' }], ['POST', 'platform/verify', { school_id: 'bright-future-academy', verified: true }],
   ['POST', 'platform/password', { school_id: 'bright-future-academy' }], ['POST', 'reset', { school_id: 'bright-future-academy' }],
   ['POST', 'impersonate', { school_id: 'bright-future-academy' }], ['GET', 'platform/audit'], ['GET', 'platform/users', null],
 ]) {
@@ -446,6 +458,38 @@ section('10. Developer adds a school by hand; reset');
   check('developer can set an email again; re-saving the same phone is not a duplicate', r.status === 200 && (await listRow()).email === 'new-owner@hand.example', r.json);
   r = await edit({ name: 'Hand Added College', phone: '0244446666' });
   check('saving without changes says so', r.status === 200 && r.json.unchanged === true, r.json);
+  // --- ownership verification ---
+  const vrow = async () => (await call('GET', 'schools/list', null, tD)).json.find(s => s.id === HID);
+  check('a new school starts unverified', !(await vrow()).verified_at);
+  check('platform/verify is refused for a school Admin (403)', (await call('POST', 'platform/verify', { school_id: HID, verified: true, note: 'x' }, adm.json.token)).status === 403);
+  check('verification: a too-short licence number is refused (400)', (await call('POST', 'verification', { licence_no: 'ab' }, adm.json.token)).status === 400);
+  r = await call('POST', 'verification', { licence_no: 'NaSIA/2026/0042' }, adm.json.token);
+  check('school Admin can submit a licence number', r.status === 200 && r.json.subscription.licence_no === 'NaSIA/2026/0042' && r.json.subscription.verified === false, r.json);
+  r = await call('POST', 'platform/verify', { school_id: HID, verified: true, note: 'NaSIA no. confirmed; called owner' }, tD);
+  check('developer can mark a school Verified', r.status === 200 && r.json.verified === true && !!(await vrow()).verified_at, r.json);
+  r = await call('GET', 'subscription', null, adm.json.token);
+  check('the school sees it is Verified', r.json.verified === true && r.json.licence_no === 'NaSIA/2026/0042', r.json);
+  await call('POST', 'verification', { licence_no: 'NaSIA/2026/0099' }, adm.json.token);
+  check('changing the licence number removes the Verified mark (must be re-checked)', !(await vrow()).verified_at && (await vrow()).licence_no === 'NaSIA/2026/0099');
+  await call('POST', 'platform/verify', { school_id: HID, verified: true, note: 'again' }, tD);
+  r = await call('POST', 'platform/verify', { school_id: HID, verified: false, note: 'doubt' }, tD);
+  check('developer can remove the Verified mark', r.status === 200 && !(await vrow()).verified_at, r.json);
+  check('verification steps are logged', (await call('GET', 'platform/audit', null, tD, { limit: 100 })).json.filter(x => x.school_id === HID && ['verify', 'unverify', 'verify_request'].includes(x.action)).length >= 4);
+
+  // --- country, WhatsApp, region, district, locality, postal address ---
+  const lst = (await call('GET', 'schools/list', null, tD)).json;
+  const bf = lst.find(x => x.id === 'bright-future-academy'), sm = lst.find(x => x.id === 'st-marys-basic-school');
+  check('signup stores the country; optional details left empty stay empty', sm.country === 'Ghana' && !sm.whatsapp && !sm.region && !sm.postal_address, sm);
+  check('signup stores WhatsApp, region, district, locality and postal address when given', bf.website === 'https://www.brightfuture.edu.gh' && bf.whatsapp === '+233205550099' && bf.region === 'Ashanti' && bf.district === 'Kumasi Metropolitan' && bf.locality === 'Adum' && bf.postal_address === 'P. O. Box 12, Kumasi', bf);
+  r = await edit({ whatsapp: '+233 24 000 1111', region: 'Volta', postal_address: 'Box 7, Ho' });
+  lr = await listRow();
+  check('developer can change WhatsApp, region and postal address', r.status === 200 && lr.whatsapp === '+233240001111' && lr.region === 'Volta' && lr.postal_address === 'Box 7, Ho', [r.json, lr]);
+  r = await edit({ website: 'https://hand.example.edu.gh' });
+  check('developer can set a website', r.status === 200 && (await listRow()).website === 'https://hand.example.edu.gh', r.json);
+  r = await edit({ whatsapp: '', region: '', website: '' });
+  lr = await listRow();
+  check('…and clear them again', r.status === 200 && !lr.whatsapp && !lr.region, lr);
+  check('details: a bad WhatsApp number is refused (400)', (await edit({ whatsapp: '12' })).status === 400);
   const detAudit = (await call('GET', 'platform/audit', null, tD, { limit: 100 })).json.filter(x => x.action === 'details' && x.school_id === HID);
   check('every details edit is logged with before/after', detAudit.length >= 3 && detAudit.some(x => x.detail.name && x.detail.name.from === 'Hand Added School' && x.detail.name.to === 'Hand Added Academy'), detAudit.map(x => x.detail));
 }

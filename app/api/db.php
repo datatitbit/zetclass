@@ -23,7 +23,7 @@ if (!defined('DEFAULT_TRIAL_DAYS')) { define('DEFAULT_TRIAL_DAYS', 30); }
 // Bump when the table layout changes. db_connect() only re-runs the (slow)
 // schema setup when the database reports an older version, instead of running
 // ~20 CREATE/ALTER statements on every single request like it used to.
-if (!defined('SCHEMA_VERSION')) { define('SCHEMA_VERSION', 6); }
+if (!defined('SCHEMA_VERSION')) { define('SCHEMA_VERSION', 9); }
 
 /* One school per NAME. Two names count as the same school when they match after ignoring
  * capital letters, spaces, punctuation and apostrophes ("St. Mary's" = "st marys" = "ST MARYS").
@@ -97,7 +97,17 @@ function db_bootstrap_schema($pdo, $driver, $jsonType) {
         contact_name VARCHAR(120),
         created_via VARCHAR(20),
         notes VARCHAR(500),
-        name_key VARCHAR(160)
+        name_key VARCHAR(160),
+        licence_no VARCHAR(80),
+        verified_at VARCHAR(30),
+        verify_note VARCHAR(300),
+        country VARCHAR(60),
+        whatsapp VARCHAR(40),
+        region VARCHAR(80),
+        district VARCHAR(80),
+        locality VARCHAR(120),
+        postal_address VARCHAR(200),
+        website VARCHAR(200)
     )$tbl");
     // The key INCLUDES school_id. It used to be (collection, id) alone, which
     // meant two schools could not both own a record called e.g. "cl-b1" or
@@ -162,6 +172,8 @@ function db_bootstrap_schema($pdo, $driver, $jsonType) {
     foreach ([
         'trial_ends_at VARCHAR(30)', 'paid_until VARCHAR(30)', 'email VARCHAR(160)',
         'phone VARCHAR(40)', 'contact_name VARCHAR(120)', 'created_via VARCHAR(20)', 'notes VARCHAR(500)', 'name_key VARCHAR(160)',
+        'licence_no VARCHAR(80)', 'verified_at VARCHAR(30)', 'verify_note VARCHAR(300)',
+        'country VARCHAR(60)', 'whatsapp VARCHAR(40)', 'region VARCHAR(80)', 'district VARCHAR(80)', 'locality VARCHAR(120)', 'postal_address VARCHAR(200)', 'website VARCHAR(200)',
     ] as $colDef) {
         try { $pdo->exec("ALTER TABLE schools ADD COLUMN $colDef"); } catch (Throwable $e) {}
     }
@@ -332,8 +344,16 @@ function db_seed_school($pdo, $school, $seed, $name = null, $opts = []) {
         $sch['name']     = $schoolName;
         $sch['email']    = $opts['email'] ?? '';
         $sch['phone']    = $opts['phone'] ?? '';
-        $sch['whatsapp'] = '';
-        foreach (['motto', 'address', 'location', 'website', 'logo', 'signature', 'stamp'] as $k) { $sch[$k] = ''; }
+        foreach (['motto', 'logo', 'signature', 'stamp'] as $k) { $sch[$k] = ''; }
+        $sch['website']  = $opts['website'] ?? '';
+        // Optional details given at signup go straight into the school's own profile (report-card header).
+        $sch['whatsapp'] = $opts['whatsapp'] ?? '';
+        $sch['address']  = $opts['postal_address'] ?? '';
+        $loc = array_filter([$opts['locality'] ?? '', $opts['district'] ?? '', $opts['region'] ?? ''], function ($x) { return $x !== ''; });
+        $sch['location'] = implode(', ', $loc);
+        $sch['country']  = $opts['country'] ?? '';
+        $sch['region']   = $opts['region'] ?? '';
+        $sch['district'] = $opts['district'] ?? '';
         $sch['theme_enabled'] = false;
         $seed['school'] = $sch;
         $seed['demoSettings'] = ['id' => 'demo-1', 'school_id' => $school, 'demo_login_enabled' => false];
@@ -369,7 +389,8 @@ function db_seed_school($pdo, $school, $seed, $name = null, $opts = []) {
     $exists = $pdo->prepare("SELECT id FROM schools WHERE id=?");
     $exists->execute([$school]);
     if (!$exists->fetch()) {
-        $reg = $pdo->prepare("INSERT INTO schools(id,name,status,plan,created_at,trial_ends_at,email,phone,contact_name,created_via,name_key) VALUES(?,?,?,?,?,?,?,?,?,?,?)");
+        $reg = $pdo->prepare("INSERT INTO schools(id,name,status,plan,created_at,trial_ends_at,email,phone,contact_name,created_via,name_key,country,whatsapp,region,district,locality,postal_address,website) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+        $nn = function ($k) use ($opts) { return ($opts[$k] ?? '') !== '' ? $opts[$k] : null; };
         $reg->execute([
             $school,
             $schoolName,
@@ -382,6 +403,7 @@ function db_seed_school($pdo, $school, $seed, $name = null, $opts = []) {
             ($opts['contact_name'] ?? '') !== '' ? $opts['contact_name'] : null,
             $opts['created_via'] ?? 'platform',
             school_name_key($schoolName),
+            $nn('country'), $nn('whatsapp'), $nn('region'), $nn('district'), $nn('locality'), $nn('postal_address'), $nn('website'),
         ]);
     }
 

@@ -452,7 +452,7 @@
   function openChangePasswordModal() {
     var body = U.el('div');
     var cur = U.el('input', { type: 'password', placeholder: 'Current password' });
-    var next = U.el('input', { type: 'password', placeholder: 'New password (min 6 characters)' });
+    var next = U.el('input', { type: 'password', placeholder: 'New password (min 8 characters)' });
     var next2 = U.el('input', { type: 'password', placeholder: 'Confirm new password' });
     function field(l, i) { return U.el('div', { class: 'field' }, [U.el('label', { text: l }), i]); }
     body.appendChild(field('Current password', cur));
@@ -466,7 +466,7 @@
         { label: 'Cancel', onClick: function (c) { c(); } },
         { label: 'Save', kind: 'gold', onClick: function (c) {
           errBox.style.display = 'none';
-          if (next.value.length < 6) { errBox.textContent = 'New password must be at least 6 characters.'; errBox.style.display = 'block'; return; }
+          if (next.value.length < 8) { errBox.textContent = 'New password must be at least 8 characters.'; errBox.style.display = 'block'; return; }
           if (next.value !== next2.value) { errBox.textContent = 'New passwords do not match.'; errBox.style.display = 'block'; return; }
           // Re-fetch the full record for the CURRENT-password check: in API mode
           // App.user came from the login response, which deliberately omits
@@ -859,9 +859,16 @@
         var d = p.replace(/\D+/g, '');
         return (d.length >= 9 && d.length <= 15 && d.charAt(0) !== '0') ? '' : 'Please enter a valid phone number with its country code, for example +233 24 123 4567.';
       },
+      // Optional: empty is fine; if something is typed it must be a full international number.
+      whatsapp: function () {
+        var p = v.whatsapp ? v.whatsapp() : '';
+        if (!p) return '';
+        var d = p.replace(/\D+/g, '');
+        return (p.charAt(0) === '+' && d.length >= 9 && d.length <= 15 && d.charAt(0) !== '0') ? '' : 'Please check the WhatsApp number, or leave it empty.';
+      },
       password: function () {
         var p = v.password();
-        if (p.length < 8) return 'Your password must be at least 8 characters.';
+        if (p.length < 8) return 'Your password needs at least 8 characters.';
         return '';
       }
     };
@@ -875,14 +882,32 @@
     chooseSignup();
   }
 
+  // A plain-English password hint. It NEVER stops anyone from registering (only a 6-character
+  // minimum does): it just tells the person how to make the password stronger.
+  function passwordTip(p) {
+    var common = /^(password|passw0rd|123456|12345678|qwerty|abc123|letmein|welcome|iloveyou|admin|school|zetclass)/i.test(p);
+    var score = (p.length >= 8 ? 1 : 0) + (p.length >= 12 ? 1 : 0) + (/[a-z]/.test(p) && /[A-Z]/.test(p) ? 1 : 0) + (/\d/.test(p) ? 1 : 0) + (/[^A-Za-z0-9]/.test(p) ? 1 : 0);
+    if (common) score = Math.min(score, 1);
+    if (!p) return { level: 'none', text: 'Tip: 10 or more characters with capital letters, numbers and a symbol (like ! or #) is strongest.' };
+    if (score <= 2) return { level: 'weak', text: 'Weak password. You can still register, but add a number, a capital letter and a symbol (like ! or #), and use 10 or more characters to protect your school.' };
+    if (score === 3) return { level: 'ok', text: 'Fair. Add a symbol (like ! or #) or a few more characters to make it strong.' };
+    return { level: 'strong', text: 'Strong password.' };
+  }
+  function bindPasswordTip(input, el) {
+    var colours = { none: '', weak: '#b3261e', ok: '#8a6410', strong: '#1b6b3a' };
+    function paint() { var t = passwordTip(input.value); el.textContent = t.text; el.style.color = colours[t.level]; el.style.fontWeight = t.level === 'none' ? '' : '600'; }
+    input.addEventListener('input', paint); paint();
+  }
+
   function chooseSignup() {
     var root = U.clear(U.$('#root'));
     var wrap = U.el('div', { class: 'login-wrap' });
     var card = U.el('div', { class: 'card' });
     var trialDays = (global.License && global.License.TRIAL_DAYS) || 30;
-    card.appendChild(U.el('div', { class: 'login-badge', text: 'Z' }));
-    card.appendChild(U.el('h1', { text: 'Start your free trial' }));
+    card.appendChild(U.el('h1', { text: 'Register', style: 'margin-top:.2rem' }));
+    card.appendChild(U.el('h2', { text: 'Start your free trial', style: 'font-size:1.1rem;margin:.1rem 0 .3rem;color:var(--teal-dark,#0f5e5e)' }));
     card.appendChild(U.el('p', { class: 'muted', text: 'Set up your school in about 2 minutes. Free for ' + trialDays + ' days — no payment details needed.' }));
+    card.appendChild(U.el('p', { class: 'help', style: 'margin-top:-.4rem' }, [U.el('span', { text: '*', style: 'color:#c0261b;font-weight:700' }), document.createTextNode(' marks a required field. Everything else is optional.')]));
 
     // The message box sits just ABOVE the Create button (added below), so whatever goes
     // wrong appears exactly where the person just clicked, never off-screen at the top.
@@ -892,12 +917,18 @@
     var inputs = {}, errEls = {};
     // `control` is what goes on screen (the input itself, or the input plus a
     // Show/Hide button); `input` is the box whose value/errors we track.
-    function addField(key, label, input, help, control) {
+    // `req`: true = required (red * and “Required” underneath), false = “Optional” underneath.
+    function reqNote(req) { return U.el('div', { class: 'field-req', text: req ? 'Required' : 'Optional', style: 'font-size:.75rem;margin-top:.15rem;color:' + (req ? '#c0261b' : 'var(--muted,#6b7a78)') }); }
+    function reqStar() { return U.el('span', { text: ' *', style: 'color:#c0261b;font-weight:700', 'aria-hidden': 'true' }); }
+    function addField(key, label, input, help, control, req) {
       input.id = 'f-' + key; input.name = key;
       var err = U.el('div', { class: 'field-error', id: 'err-' + key, 'aria-live': 'polite' });
       input.setAttribute('aria-describedby', 'err-' + key);
       inputs[key] = input; errEls[key] = err;
-      var kids = [U.el('label', { for: 'f-' + key, text: label }), control || input, err];
+      var lab = U.el('label', { for: 'f-' + key, text: label });
+      if (req === true) { lab.appendChild(reqStar()); input.setAttribute('aria-required', 'true'); }
+      var kids = [lab, control || input, err];
+      if (req !== undefined) kids.push(reqNote(req));
       if (help) kids.push(U.el('div', { class: 'help', text: help }));
       form.appendChild(U.el('div', { class: 'field' }, kids));
     }
@@ -908,45 +939,81 @@
     }
 
     var schoolIn = U.el('input', { type: 'text', autocomplete: 'organization', placeholder: 'e.g. St. Mary’s Basic School', maxlength: '120' });
-    var emailIn  = U.el('input', { type: 'email', autocomplete: 'email', inputmode: 'email', placeholder: 'you@example.com', maxlength: '160', autocapitalize: 'none', spellcheck: 'false' });
-    // autocomplete "tel-national" asks the browser to fill the number WITHOUT its country code.
-    var phoneIn  = U.el('input', { type: 'tel', autocomplete: 'tel-national', inputmode: 'numeric', placeholder: 'e.g. 24 123 4567', maxlength: '20' });
-    // Country code: Ghana is pre-selected; the number is saved in full international form (+233…).
-    var COUNTRIES = [['+233', 'Ghana +233'], ['+234', 'Nigeria +234'], ['+228', 'Togo +228'], ['+225', 'Côte d’Ivoire +225'], ['+226', 'Burkina Faso +226'],
-      ['+232', 'Sierra Leone +232'], ['+231', 'Liberia +231'], ['+220', 'Gambia +220'], ['+221', 'Senegal +221'], ['+254', 'Kenya +254'],
-      ['+256', 'Uganda +256'], ['+255', 'Tanzania +255'], ['+27', 'South Africa +27'], ['+44', 'United Kingdom +44'], ['+1', 'USA / Canada +1'], ['other', 'Other (type the full number with +)']];
-    var countrySel = U.el('select', { 'aria-label': 'Country code', style: 'flex:0 0 auto;max-width:48%' });
-    COUNTRIES.forEach(function (c) { countrySel.appendChild(U.el('option', { value: c[0], text: c[1] })); });
-    // With a country chosen, the box takes ONLY the main number: digits only, no "+", no country
-    // code (typed or pasted ones are removed), no leading 0.  024 350 6373 -> 243506373.
-    // "Other" lets the person type the whole international number with a +.
-    function tidyPhone() {
-      if (countrySel.value === 'other') { phoneIn.value = phoneIn.value.replace(/[^\d+ ]/g, ''); return; }
-      var raw = phoneIn.value, d = raw.replace(/\D+/g, ''), code = countrySel.value.replace(/\D+/g, '');
-      var hadPlus = raw.trim().charAt(0) === '+';
-      if (code && d.indexOf(code) === 0 && (hadPlus || d.length >= code.length + 9)) d = d.slice(code.length);
-      d = d.replace(/^0+/, '');
-      phoneIn.value = d;
-    }
-    function composedPhone() {
-      tidyPhone();
-      var raw = phoneIn.value.trim();
-      if (countrySel.value === 'other') return raw;                                 // already in full form
-      return raw ? countrySel.value + raw : '';
-    }
-    function phoneHelp() {
-      var other = countrySel.value === 'other';
-      phoneIn.placeholder = other ? '+44 20 7946 0958' : 'e.g. 24 123 4567';
-      phoneIn.setAttribute('inputmode', other ? 'tel' : 'numeric');
-    }
-    var passIn   = U.el('input', { type: 'password', autocomplete: 'new-password', placeholder: 'At least 8 characters', maxlength: '128' });
+    var emailIn  = U.el('input', { type: 'email', autocomplete: 'email', inputmode: 'email', placeholder: 'school@example.com', maxlength: '160', autocapitalize: 'none', spellcheck: 'false' });
 
-    addField('school_name', 'School name', schoolIn);
-    addField('email', 'Email address', emailIn, 'Your password-reset link is sent here.');
-    addField('phone', 'Phone or WhatsApp number', phoneIn, 'Pick your country, then type only your main number, for example 24 123 4567. The country code is added for you. We only use it to help you if you get stuck.',
-      U.el('div', { style: 'display:flex;gap:.5rem' }, [countrySel, phoneIn]));
-    phoneIn.addEventListener('input', tidyPhone);
-    countrySel.addEventListener('change', function () { phoneHelp(); tidyPhone(); if (errEls.phone.textContent) setError('phone', checks.phone()); });
+    // COUNTRY: one dropdown. Choosing it fills in the dialling code on both phone boxes, so the person only
+    // types the main number. Ghana is pre-selected. The number is saved in full international form (+233…).
+    var COUNTRIES = (App.COUNTRIES = ('Ghana|+233;Nigeria|+234;Togo|+228;Côte d’Ivoire|+225;Burkina Faso|+226;Benin|+229;Sierra Leone|+232;Liberia|+231;Gambia|+220;Senegal|+221;' +
+      'Kenya|+254;Uganda|+256;Tanzania|+255;Rwanda|+250;Ethiopia|+251;Zambia|+260;Zimbabwe|+263;Malawi|+265;Mozambique|+258;Botswana|+267;Namibia|+264;South Africa|+27;' +
+      'Cameroon|+237;Gabon|+241;Congo|+242;DR Congo|+243;Angola|+244;Guinea|+224;Mali|+223;Niger|+227;Mauritania|+222;Cape Verde|+238;Egypt|+20;Morocco|+212;Tunisia|+216;Algeria|+213;Sudan|+249;South Sudan|+211;' +
+      'United Kingdom|+44;United States|+1;Canada|+1;Ireland|+353;France|+33;Germany|+49;Netherlands|+31;Belgium|+32;Spain|+34;Italy|+39;Portugal|+351;Switzerland|+41;Sweden|+46;Norway|+47;Denmark|+45;' +
+      'United Arab Emirates|+971;Saudi Arabia|+966;Qatar|+974;Turkey|+90;India|+91;Pakistan|+92;Bangladesh|+880;Sri Lanka|+94;China|+86;Japan|+81;South Korea|+82;Singapore|+65;Malaysia|+60;Philippines|+63;Indonesia|+62;' +
+      'Australia|+61;New Zealand|+64;Brazil|+55;Jamaica|+1876;Trinidad and Tobago|+1868;Barbados|+1246').split(';').map(function (s) { var p = s.split('|'); return { name: p[0], code: p[1] }; }));
+    var REGIONS_GH = ['Ahafo', 'Ashanti', 'Bono', 'Bono East', 'Central', 'Eastern', 'Greater Accra', 'North East', 'Northern', 'Oti', 'Savannah', 'Upper East', 'Upper West', 'Volta', 'Western', 'Western North'];
+    var countrySel = U.el('select', { autocomplete: 'country-name' });
+    COUNTRIES.forEach(function (c) { countrySel.appendChild(U.el('option', { value: c.name, text: c.name })); });
+    function dialCode() { var c = COUNTRIES.filter(function (x) { return x.name === countrySel.value; })[0]; return c ? c.code : ''; }
+
+    // A phone box with a fixed, read-only "+233" in front. With a country chosen, the box takes ONLY the main
+    // number: digits only, no "+", no country code (typed or pasted ones are removed), no leading 0.
+    // 024 350 6373 -> 243506373.
+    function makePhone(placeholder) {
+      var input = U.el('input', { type: 'tel', autocomplete: 'tel-national', inputmode: 'numeric', placeholder: placeholder, maxlength: '20', style: 'flex:1;min-width:0' });
+      var prefix = U.el('span', { class: 'phone-prefix', 'aria-hidden': 'true', style: 'flex:none;display:flex;align-items:center;padding:0 .7rem;border:1px solid var(--line,#cfd8d6);border-radius:8px;background:#eef3f2;font-weight:600;white-space:nowrap' });
+      function tidy() {
+        var raw = input.value, d = raw.replace(/\D+/g, ''), code = dialCode().replace(/\D+/g, '');
+        var hadPlus = raw.trim().charAt(0) === '+';
+        if (code && d.indexOf(code) === 0 && (hadPlus || d.length >= code.length + 9)) d = d.slice(code.length);
+        input.value = d.replace(/^0+/, '');
+      }
+      function composed() { tidy(); return input.value ? dialCode() + input.value : ''; }
+      function refresh() { prefix.textContent = dialCode(); tidy(); }
+      input.addEventListener('input', tidy);
+      refresh();
+      return { input: input, prefix: prefix, composed: composed, refresh: refresh, box: U.el('div', { style: 'display:flex;gap:.4rem' }, [prefix, input]) };
+    }
+    var phoneBox = makePhone('e.g. 24 123 4567');
+    var waBox = makePhone('e.g. 24 123 4567');
+    var phoneIn = phoneBox.input, waIn = waBox.input;
+    var composedPhone = phoneBox.composed;
+    var passIn   = U.el('input', { type: 'password', autocomplete: 'new-password', placeholder: 'Choose a password', maxlength: '128' });
+
+    addField('school_name', 'School name', schoolIn, '', null, true);
+    addField('country', 'Country', countrySel, 'Choosing your country adds its dialling code to the phone numbers below.', null, true);
+    addField('email', 'School email address', emailIn, 'Your password-reset link is sent here.', null, true);
+    addField('phone', 'School phone number (for calls)', phoneIn, 'The number we can call. Type only the main number, for example 24 123 4567 — the country code is added for you.', phoneBox.box, true);
+    addField('whatsapp', 'WhatsApp number (optional)', waIn, 'A different number from the phone above, if the school uses one for WhatsApp. Leave empty if you have none.', waBox.box, false);
+    countrySel.value = 'Ghana';
+    countrySel.addEventListener('change', function () {
+      phoneBox.refresh(); waBox.refresh(); paintRegion();
+      if (errEls.phone.textContent) setError('phone', checks.phone());
+      if (errEls.whatsapp.textContent) setError('whatsapp', checks.whatsapp());
+    });
+
+    // OPTIONAL location details, tucked away so the form stays short: region, district, area, postal address.
+    // Ghana gets the list of its 16 regions; other countries type the region / state / province.
+    var regionHost = U.el('div');
+    var regionIn;
+    function paintRegion() {
+      U.clear(regionHost);
+      if (countrySel.value === 'Ghana') {
+        regionIn = U.el('select', { id: 'f-region', name: 'region' }, [U.el('option', { value: '', text: 'Select region…' })].concat(REGIONS_GH.map(function (r) { return U.el('option', { value: r, text: r }); })));
+      } else {
+        regionIn = U.el('input', { type: 'text', id: 'f-region', name: 'region', maxlength: '80', placeholder: 'Region / state / province', autocomplete: 'address-level1' });
+      }
+      regionHost.appendChild(regionIn);
+    }
+    paintRegion();
+    var districtIn = U.el('input', { type: 'text', id: 'f-district', name: 'district', maxlength: '80', placeholder: 'e.g. Ayawaso West', autocomplete: 'address-level2' });
+    var localityIn = U.el('input', { type: 'text', id: 'f-locality', name: 'locality', maxlength: '120', placeholder: 'Town, suburb or area, e.g. East Legon' });
+    var postalIn   = U.el('textarea', { id: 'f-postal_address', name: 'postal_address', rows: '2', maxlength: '200', placeholder: 'e.g. P. O. Box 123, Accra, or street address / digital address (GA-123-4567)', autocomplete: 'street-address' });
+    var websiteIn  = U.el('input', { type: 'text', id: 'f-website', name: 'website', maxlength: '200', placeholder: 'e.g. www.myschool.edu.gh', autocomplete: 'url', autocapitalize: 'none', spellcheck: 'false', inputmode: 'url' });
+    function optField(label, node) { return U.el('div', { class: 'field' }, [U.el('label', { text: label }), node, reqNote(false)]); }
+    var locationDetails = (U.el('details', { class: 'optional-details', style: 'margin:.2rem 0 .8rem' }, [
+      U.el('summary', { text: 'Add more about the school (optional)', style: 'cursor:pointer;font-weight:600;color:var(--teal-dark,#0f5e5e)' }),
+      U.el('div', { class: 'help', text: 'Helps us find and serve you, and prints on report cards. You can add or change these later in Settings.', style: 'margin:.4rem 0' }),
+      optField('Website', websiteIn), optField('Region', regionHost), optField('District', districtIn), optField('Locality / area', localityIn), optField('Postal address', postalIn)
+    ]));
     // The password box gets a Show/Hide button instead of a "type it twice" box:
     // fewer fields, and people can simply see what they typed.
     var toggle = U.el('button', { type: 'button', class: 'pw-toggle', text: 'Show', 'aria-label': 'Show password', onclick: function () {
@@ -955,8 +1022,13 @@
       toggle.textContent = show ? 'Hide' : 'Show';
       toggle.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
     } });
-    addField('password', 'Create a password', passIn, 'Use 8 or more letters and numbers you will remember.',
-      U.el('div', { class: 'pw-wrap' }, [passIn, toggle]));
+    addField('password', 'Create a password', passIn, '',
+      U.el('div', { class: 'pw-wrap' }, [passIn, toggle]), true);
+    // Live strength tip (advice only: it never blocks the signup).
+    var pwHelp = U.el('div', { class: 'help' });
+    inputs.password.closest('.field').appendChild(pwHelp);
+    bindPasswordTip(passIn, pwHelp);
+    form.appendChild(locationDetails);
 
     // Honeypot: invisible to people, tempting to bots. Server rejects it if filled.
     // (Named so browser autofill does not recognise it as a form field to fill in.)
@@ -965,9 +1037,9 @@
 
     var checks = signupChecks({
       school_name: function () { return schoolIn.value; },
-      email: function () { return emailIn.value; }, phone: composedPhone, password: function () { return passIn.value; }
+      email: function () { return emailIn.value; }, phone: composedPhone, whatsapp: waBox.composed, password: function () { return passIn.value; }
     });
-    var order = ['school_name', 'email', 'phone', 'password'];
+    var order = ['school_name', 'email', 'phone', 'whatsapp', 'password'];
     order.forEach(function (k) {
       inputs[k].addEventListener('blur', function () { if (inputs[k].value) setError(k, checks[k]()); });
       // Clear a shown error as soon as the person starts fixing it.
@@ -982,14 +1054,30 @@
       U.el('div', { class: 'help', text: 'Adds a few pretend pupils, fees, attendance, scores, stock, accounts and more so you can try every screen. Remove it in one click from your dashboard or Settings when you are ready for real records.' })
     ]));
 
+    // Required: the person confirms they may register this school (the server checks this too),
+    // with a short warning about false claims. Shown BEFORE the Terms box.
+    var authBox = U.el('input', { type: 'checkbox', id: 'f-authority', style: 'width:auto;flex:none;margin:.2rem 0 0' });
+    var authErr = U.el('div', { class: 'field-error', id: 'err-authority', 'aria-live': 'polite' });
+    form.appendChild(U.el('div', { class: 'field' }, [
+      U.el('label', { for: 'f-authority', style: 'display:flex;gap:.5rem;align-items:flex-start;justify-content:flex-start;text-align:left;font-weight:600;cursor:pointer' }, [
+        authBox,
+        U.el('span', {}, [document.createTextNode('I am the owner or an authorised representative of this school, and I am allowed to register it.'), reqStar()])
+      ]),
+      reqNote(true),
+      authErr,
+      U.el('div', { class: 'help', style: 'background:#fff8e6;border:1px solid #e6c36a;border-radius:8px;padding:.5rem .65rem;margin-top:.45rem', text: 'Please note: registering a school you are not authorised to represent, or pretending to be someone you are not, is a false claim. It can make you personally liable for any loss caused, your account may be closed, and it may be reported to the authorities under Ghana law.' })
+    ]));
+    authBox.addEventListener('change', function () { if (authBox.checked) authErr.textContent = ''; });
+
     // Required: accept the Terms of Service and Privacy Notice (the server checks this too).
     var termsBox = U.el('input', { type: 'checkbox', id: 'f-terms', style: 'width:auto;flex:none;margin:.2rem 0 0' });
     var termsErr = U.el('div', { class: 'field-error', id: 'err-terms', 'aria-live': 'polite' });
     form.appendChild(U.el('div', { class: 'field' }, [
       U.el('label', { for: 'f-terms', style: 'display:flex;gap:.5rem;align-items:flex-start;justify-content:flex-start;text-align:left;font-weight:600;cursor:pointer' }, [
         termsBox,
-        U.el('span', {}, [document.createTextNode('I agree to the '), U.el('a', { href: '/terms.html', target: '_blank', rel: 'noopener', text: 'Terms of Service' }), document.createTextNode(' and '), U.el('a', { href: '/privacy.html', target: '_blank', rel: 'noopener', text: 'Privacy Notice' })])
+        U.el('span', {}, [document.createTextNode('I agree to the '), U.el('a', { href: '/terms.html', target: '_blank', rel: 'noopener', text: 'Terms of Service' }), document.createTextNode(' and '), U.el('a', { href: '/privacy.html', target: '_blank', rel: 'noopener', text: 'Privacy Notice' }), reqStar()])
       ]),
+      reqNote(true),
       termsErr
     ]));
     termsBox.addEventListener('change', function () { if (termsBox.checked) termsErr.textContent = ''; });
@@ -1015,13 +1103,18 @@
       alertBox.style.display = 'none';
       var firstBad = null;
       order.forEach(function (k) { var m = checks[k](); setError(k, m); if (m && !firstBad) firstBad = k; });
+      if (!authBox.checked) { authErr.textContent = 'Please confirm that you are the owner or an authorised representative of this school.'; }
       if (!termsBox.checked) { termsErr.textContent = 'Please tick the box to accept the Terms of Service and Privacy Notice.'; if (!firstBad) termsBox.focus(); }
       if (firstBad) { showAlert(checks[firstBad](), true); goTo(inputs[firstBad]); return; }
+      if (!authBox.checked) { showAlert('Please confirm that you are the owner or an authorised representative of this school.'); return; }
       if (!termsBox.checked) { showAlert('Please tick the box to accept the Terms of Service and Privacy Notice.'); return; }
       var payload = {
+        confirm_authority: true,
         accept_terms: true,
         school_name: schoolIn.value.replace(/\s+/g, ' ').trim(),
-        email: emailIn.value.trim(), phone: composedPhone(), password: passIn.value, company_website: hp.value
+        email: emailIn.value.trim(), phone: composedPhone(), whatsapp: waBox.composed(), country: countrySel.value, website: websiteIn.value.trim(),
+        region: (regionIn.value || '').trim(), district: districtIn.value.trim(), locality: localityIn.value.trim(), postal_address: postalIn.value.trim(),
+        password: passIn.value, company_website: hp.value
       };
       btn.disabled = true; btn.textContent = 'Creating your school…';
       DB.apiRegister(payload).then(function (res) {
@@ -1198,7 +1291,9 @@
     card.appendChild(U.el('p', { class: 'muted', text: 'For the school “' + school + '”. Pick something you will remember.' }));
 
     var alertBox = U.el('div', { class: 'login-error', role: 'alert', style: 'display:none;color:#b3261e;font-size:.85rem;margin:.4rem 0 .8rem' });
-    var passIn = U.el('input', { type: 'password', id: 'f-newpass', autocomplete: 'new-password', placeholder: 'At least 8 characters', maxlength: '128' });
+    var passIn = U.el('input', { type: 'password', id: 'f-newpass', autocomplete: 'new-password', placeholder: 'Choose a new password', maxlength: '128' });
+    var pwHelp2 = U.el('div', { class: 'help' });
+    bindPasswordTip(passIn, pwHelp2);
     var err = U.el('div', { class: 'field-error', 'aria-live': 'polite' });
     var toggle = U.el('button', { type: 'button', class: 'pw-toggle', text: 'Show', 'aria-label': 'Show password', onclick: function () {
       var show = passIn.type === 'password'; passIn.type = show ? 'text' : 'password';
@@ -1208,13 +1303,13 @@
     var form = U.el('form', { class: 'form login-form', novalidate: true });
     form.appendChild(alertBox);
     form.appendChild(U.el('div', { class: 'field' }, [U.el('label', { for: 'f-newpass', text: 'New password' }), U.el('div', { class: 'pw-wrap' }, [passIn, toggle]), err,
-      U.el('div', { class: 'help', text: 'Use 8 or more letters and numbers you will remember.' })]));
+      pwHelp2]));
     form.appendChild(btn);
 
     form.addEventListener('submit', function (e) {
       e.preventDefault();
       alertBox.style.display = 'none'; err.textContent = ''; passIn.classList.remove('input-error');
-      if (passIn.value.length < 8) { err.textContent = 'Your password must be at least 8 characters.'; passIn.classList.add('input-error'); passIn.focus(); return; }
+      if (passIn.value.length < 8) { err.textContent = 'Your password needs at least 8 characters.'; passIn.classList.add('input-error'); passIn.focus(); return; }
       btn.disabled = true; btn.textContent = 'Saving…';
       DB.apiResetPassword(school, token, passIn.value).then(function () {
         U.clear(card);

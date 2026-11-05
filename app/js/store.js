@@ -231,6 +231,12 @@
   ApiAdapter.prototype.platformDetails = function (schoolId, d) {
     return this._req('POST', 'platform/details', Object.assign({ school_id: schoolId }, d));
   };
+  // Developer marks a school's ownership as checked (or removes the mark).
+  ApiAdapter.prototype.platformVerify = function (schoolId, verified, note) {
+    return this._req('POST', 'platform/verify', { school_id: schoolId, verified: !!verified, note: note || '' });
+  };
+  // School Admin submits their school's licence / registration number for checking.
+  ApiAdapter.prototype.submitVerification = function (licenceNo) { return this._req('POST', 'verification', { licence_no: licenceNo }); };
   // One-time temporary password for a user (default: the school's first Admin).
   ApiAdapter.prototype.platformResetPassword = function (schoolId, userId) {
     return this._req('POST', 'platform/password', { school_id: schoolId, user_id: userId || undefined });
@@ -333,6 +339,8 @@
     platformDismissRequest: function (id) { return DB.isApi ? adapter.platformDismissRequest(id) : Promise.reject(new Error('Platform routes require API mode.')); },
     platformNote: function (schoolId, note) { return DB.isApi ? adapter.platformNote(schoolId, note) : Promise.reject(new Error('Platform routes require API mode.')); },
     platformDetails: function (schoolId, d) { return DB.isApi ? adapter.platformDetails(schoolId, d) : Promise.reject(new Error('Platform routes require API mode.')); },
+    platformVerify: function (schoolId, verified, note) { return DB.isApi ? adapter.platformVerify(schoolId, verified, note) : Promise.reject(new Error('Platform routes require API mode.')); },
+    submitVerification: function (licenceNo) { return DB.isApi ? adapter.submitVerification(licenceNo) : Promise.reject(new Error('Verification requires the hosted version.')); },
     platformResetPassword: function (schoolId, userId) { return DB.isApi ? adapter.platformResetPassword(schoolId, userId) : Promise.reject(new Error('Platform routes require API mode.')); },
     platformSuspend: function (schoolId, status) { return DB.isApi ? adapter.platformSuspend(schoolId, status) : Promise.reject(new Error('Platform routes require API mode.')); },
     platformReset: function (schoolId) { return DB.isApi ? adapter.platformReset(schoolId) : Promise.reject(new Error('Platform routes require API mode.')); },

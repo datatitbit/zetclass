@@ -176,6 +176,32 @@ function valid_phone_no($raw, $needCountryCode = false) {
     }
     return [$plus . $digits, null];
 }
+/* Optional location details a school can give: country (required at public signup), WhatsApp number,
+ * region, district, locality / area and postal address. Returns [values, errors]; empty optional values
+ * are simply ''. $b is the request body. Text is cleaned (tags/control characters removed, length capped). */
+function valid_school_extras($b, $needCountry = false) {
+    $v = ['country' => '', 'whatsapp' => '', 'region' => '', 'district' => '', 'locality' => '', 'postal_address' => '', 'website' => ''];
+    $err = [];
+    $v['country'] = clean_text($b['country'] ?? '', 60);
+    if ($needCountry && mb_strlen($v['country']) < 2) { $err['country'] = 'Please choose your country.'; }
+    if (trim((string)($b['whatsapp'] ?? '')) !== '') {
+        list($w, $e) = valid_phone_no($b['whatsapp'], true);
+        if ($e) { $err['whatsapp'] = 'Please check the WhatsApp number (or leave it empty).'; } else { $v['whatsapp'] = $w; }
+    }
+    // Website (optional): a plain address like www.school.edu.gh or https://school.edu.gh. https:// is added when missing.
+    $site = trim((string)($b['website'] ?? ''));
+    if ($site !== '') {
+        $withScheme = preg_match('#^https?://#i', $site) ? $site : 'https://' . $site;
+        $host = parse_url($withScheme, PHP_URL_HOST);
+        if (strlen($withScheme) > 200 || preg_match('/[\s<>"\']/', $withScheme) || !$host || strpos($host, '.') === false) { $err['website'] = 'Please check the website address (for example www.myschool.edu.gh), or leave it empty.'; }
+        else { $v['website'] = $withScheme; }
+    }
+    foreach (['region' => 80, 'district' => 80, 'locality' => 120, 'postal_address' => 200] as $k => $max) {
+        $t = clean_text($b[$k] ?? '', $max);
+        if (preg_match('/[<>]/', $t)) { $err[$k] = 'Please remove the < and > characters.'; } else { $v[$k] = $t; }
+    }
+    return [$v, $err];
+}
 /* One-time password the developer hands to a school (new school, reset, or
  * "forgot password"). Ambiguous characters (0/O, 1/l/I) are left out so it can
  * be read over the phone or WhatsApp. The school is forced to change it at
@@ -188,16 +214,10 @@ function temp_password() {
 }
 function valid_new_password($raw, $email, $schoolName) {
     $p = (string)$raw;
-    if (strlen($p) < 8)   { return [$p, 'Your password must be at least 8 characters.']; }
+    // A weak password does NOT stop a registration: the sign-up page shows a short tip on how to
+    // make it stronger instead. Only an absolute floor remains (not blank / not trivially short).
+    if (strlen($p) < 8)   { return [$p, 'Your password needs at least 8 characters.']; }
     if (strlen($p) > 128) { return [$p, 'Your password is too long (128 characters at most).']; }
-    $low = strtolower($p);
-    $common = ['password', '12345678', '123456789', '1234567890', 'qwertyui', 'qwerty123', 'iloveyou', 'password1', 'password123', 'abcd1234', '11111111', '00000000', 'admin123', 'letmein1', 'welcome1', 'school123', 'zetclass', 'zetclass1', 'zetclass123'];
-    if (in_array($low, $common, true) || preg_match('/^(.)\1+$/', $p)) {
-        return [$p, 'That password is too easy to guess. Please choose something harder.'];
-    }
-    if ($low === strtolower($email) || $low === strtolower($schoolName)) {
-        return [$p, 'Your password cannot be the same as your email or school name.'];
-    }
     return [$p, null];
 }
 
@@ -313,6 +333,10 @@ function subscription_state($row) {
         'state'         => $state,
         'days_left'     => $daysLeft,
         'source'        => 'server',
+        // Ownership check: the school's own licence number, and whether the owner has verified it.
+        'verified'      => !empty($row['verified_at']),
+        'verified_at'   => $row['verified_at'] ?? null,
+        'licence_no'    => $row['licence_no'] ?? null,
     ];
 }
 
@@ -539,7 +563,11 @@ if ($head === 'register' && $method === 'POST') {
     // The person must accept the Terms of Service and Privacy Notice (app/terms.html, app/privacy.html).
     // The version they accepted is written to the signup record in the activity log.
     $e6 = !empty($b['accept_terms']) ? null : 'Please tick the box to accept the Terms of Service and Privacy Notice.';
-    $fieldErrors = array_filter(['school_name' => $e1, 'contact_name' => $e2, 'email' => $e3, 'phone' => $e4, 'password' => $e5, 'accept_terms' => $e6]);
+    // The person must declare that they own, or are authorised to register, this school.
+    // The declaration (with time and connection address) is written to the signup record, as evidence.
+    $e7 = !empty($b['confirm_authority']) ? null : 'Please confirm that you are the owner or an authorised representative of this school.';
+    list($extras, $extraErrs) = valid_school_extras($b, true);
+    $fieldErrors = array_filter(['school_name' => $e1, 'contact_name' => $e2, 'email' => $e3, 'phone' => $e4, 'password' => $e5, 'confirm_authority' => $e7, 'accept_terms' => $e6] + $extraErrs);
     if ($fieldErrors) { out(['error' => 'Please fix the highlighted fields.', 'fields' => $fieldErrors], 400); }
 
     // One school per NAME: a second "ABC School" (any capitals / spacing / punctuation) is refused.
@@ -576,8 +604,8 @@ if ($head === 'register' && $method === 'POST') {
             'admin' => ['name' => $contactName !== '' ? $contactName : 'School Administrator', 'username' => 'admin', 'password' => $password, 'must_change' => false],
             'email' => $email, 'phone' => $phone, 'contact_name' => $contactName,
             'created_via' => 'self-signup', 'trial_days' => $trialDays,
-        ]);
-        audit($pdo, ['uid' => 'self-signup'], 'signup', $sid, null, ['name' => $schoolName, 'email' => $email, 'terms_version' => '2026-11-05']);
+        ] + $extras);
+        audit($pdo, ['uid' => 'self-signup'], 'signup', $sid, null, ['name' => $schoolName, 'email' => $email, 'terms_version' => '2026-11-05c', 'authority_declared' => true, 'ip' => $ip]);
         $pdo->commit();
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) { $pdo->rollBack(); }
@@ -595,7 +623,7 @@ if ($head === 'register' && $method === 'POST') {
     // Best-effort heads-up to the developer; never allowed to fail the signup.
     if (!empty($cfg['NOTIFY_EMAIL'])) {
         @mail($cfg['NOTIFY_EMAIL'], 'New Zetclass signup: ' . $schoolName,
-              "School: $schoolName\nContact: " . ($contactName !== '' ? $contactName : '(not given)') . "\nEmail: $email\nPhone: $phone\nAddress: zetclass.com/$sid\n",
+              "School: $schoolName\nContact: " . ($contactName !== '' ? $contactName : '(not given)') . "\nCountry: {$extras['country']}\nEmail: $email\nPhone: $phone\nWhatsApp: " . ($extras['whatsapp'] !== '' ? $extras['whatsapp'] : '(not given)') . "\nAddress: zetclass.com/$sid\n",
               'Content-Type: text/plain; charset=utf-8');
     }
 
@@ -624,7 +652,7 @@ $isPlat = !empty($claims['plat']);
 /* ---- platform super-admin routes ---- */
 if ($head === 'schools' && $arg === 'list' && $method === 'GET') {
     if (!$isPlat) { out(['error' => 'Forbidden'], 403); }
-    $rows = $pdo->query("SELECT id, name, status, plan, created_at, trial_ends_at, paid_until, email, phone, contact_name, created_via, notes FROM schools ORDER BY created_at DESC")->fetchAll();
+    $rows = $pdo->query("SELECT id, name, status, plan, created_at, trial_ends_at, paid_until, email, phone, contact_name, created_via, notes, licence_no, verified_at, verify_note, country, whatsapp, region, district, locality, postal_address, website FROM schools ORDER BY created_at DESC")->fetchAll();
     $cntStmt = $pdo->prepare("SELECT COUNT(*) c FROM documents WHERE collection='users' AND school_id=?");
     foreach ($rows as &$row) {
         $cntStmt->execute([$row['id']]);
@@ -819,6 +847,24 @@ if ($head === 'platform' && $arg === 'payment' && $method === 'POST') {
     $after = $pdo->prepare("SELECT * FROM schools WHERE id=?"); $after->execute([$sid]);
     out(['ok' => true, 'audit' => $logged, 'subscription' => subscription_state($after->fetch())]);
 }
+/* Ownership verification (OWNER ONLY). After checking a school's proof (for example its NaSIA licence
+ * number against NaSIA's records, a call to the phone on file, or a photo of its certificate sent on
+ * WhatsApp), the owner marks it Verified, with a note of how. Verified can be removed again. */
+if ($head === 'platform' && $arg === 'verify' && $method === 'POST') {
+    if (!$isPlat) { out(['error' => 'Forbidden'], 403); }
+    $b = body();
+    $sid = $b['school_id'] ?? '';
+    if (!$sid) { out(['error' => 'school_id required'], 400); }
+    $ex = $pdo->prepare("SELECT id, verified_at FROM schools WHERE id=?"); $ex->execute([$sid]);
+    $row = $ex->fetch();
+    if (!$row) { out(['error' => 'School not found'], 404); }
+    $verified = !empty($b['verified']);
+    $note = clean_text($b['note'] ?? '', 300);
+    $pdo->prepare("UPDATE schools SET verified_at=?, verify_note=? WHERE id=?")
+        ->execute([$verified ? gmdate('c') : null, $note === '' ? null : $note, $sid]);
+    $logged = audit($pdo, $claims, $verified ? 'verify' : 'unverify', $sid, null, ['note' => $note]);
+    out(['ok' => true, 'audit' => $logged, 'verified' => $verified, 'verified_at' => $verified ? gmdate('c') : null, 'verify_note' => $note]);
+}
 /* Developer's private note about a school (e.g. "paid GHS 600 by MoMo, ref 123"). */
 if ($head === 'platform' && $arg === 'note' && $method === 'POST') {
     if (!$isPlat) { out(['error' => 'Forbidden'], 403); }
@@ -870,6 +916,15 @@ if ($head === 'platform' && $arg === 'details' && $method === 'POST') {
     if (array_key_exists('phone', $b)) {
         if (trim((string)$b['phone']) === '') { $new['phone'] = null; }
         else { list($v, $err) = valid_phone_no($b['phone']); if ($err) { out(['error' => $err], 400); } $new['phone'] = $v; }
+    }
+    // Country, WhatsApp, region, district, locality and postal address (all optional; an empty value clears it).
+    $xk = array_values(array_filter(['country', 'whatsapp', 'region', 'district', 'locality', 'postal_address', 'website'], function ($k) use ($b) { return array_key_exists($k, $b); }));
+    if ($xk) {
+        list($xv, $xe) = valid_school_extras($b, false);
+        foreach ($xk as $k) {
+            if (isset($xe[$k])) { out(['error' => $xe[$k]], 400); }
+            $new[$k] = $xv[$k] === '' ? null : $xv[$k];
+        }
     }
     // Only fields that actually change.
     foreach ($new as $k => $v) { if ((string)$v === (string)($row[$k] ?? '')) { unset($new[$k]); } }
@@ -1014,6 +1069,8 @@ if ($head === 'reset' && $method === 'POST') {
             'demo' => false,
             'admin' => ['name' => $row['contact_name'] ?: 'School Administrator', 'username' => 'admin', 'password' => $tempPassword, 'must_change' => true],
             'email' => $row['email'] ?? '', 'phone' => $row['phone'] ?? '',
+            'country' => $row['country'] ?? '', 'whatsapp' => $row['whatsapp'] ?? '', 'region' => $row['region'] ?? '',
+            'district' => $row['district'] ?? '', 'locality' => $row['locality'] ?? '', 'postal_address' => $row['postal_address'] ?? '', 'website' => $row['website'] ?? '',
         ]);
         $logged = audit($pdo, $claims, 'reset', $sid);
         $pdo->commit();
@@ -1264,6 +1321,24 @@ if ($head === 'subscription' && $method === 'GET') {
         ]);
     }
     out(subscription_state($row));
+}
+
+/* A school's Administrator gives the school's licence / registration number (for a private school:
+ * its NaSIA licence number) so the owner can verify that the school really is theirs to register.
+ * Changing the number removes an earlier Verified mark: new details have to be checked again. */
+if ($head === 'verification' && $method === 'POST') {
+    if ($callerRole !== 'Admin') { out(['error' => 'Only the school Administrator can do this.', 'code' => 'role'], 403); }
+    $b = body();
+    $no = clean_text($b['licence_no'] ?? '', 80);
+    if (mb_strlen($no) < 3) { out(['error' => 'Please enter your school’s licence or registration number (at least 3 characters).'], 400); }
+    $cur = $pdo->prepare("SELECT licence_no FROM schools WHERE id=?"); $cur->execute([$SCHOOL]);
+    $was = $cur->fetch();
+    if (!$was) { out(['error' => 'School not found'], 404); }
+    $changed = (string)($was['licence_no'] ?? '') !== $no;
+    if ($changed) { $pdo->prepare("UPDATE schools SET licence_no=?, verified_at=NULL, verify_note=NULL WHERE id=?")->execute([$no, $SCHOOL]); }
+    $logged = audit($pdo, $claims, 'verify_request', $SCHOOL, null, ['licence_no' => $no]);
+    $after = $pdo->prepare("SELECT * FROM schools WHERE id=?"); $after->execute([$SCHOOL]);
+    out(['ok' => true, 'audit' => $logged, 'subscription' => subscription_state($after->fetch())]);
 }
 
 /* ---- singletons (per school) ---- */

@@ -54,8 +54,11 @@
       var f = U.form([
         { name: 'name', label: 'School name', required: true },
         { name: 'motto', label: 'Motto / slogan' },
-        { name: 'address', label: 'Address' },
-        { name: 'location', label: 'Location / area' },
+        { name: 'address', label: 'Postal address' },
+        { name: 'country', label: 'Country' },
+        { name: 'region', label: 'Region' },
+        { name: 'district', label: 'District' },
+        { name: 'location', label: 'Locality / area' },
         { name: 'phone', label: 'Phone' },
         { name: 'whatsapp', label: 'WhatsApp' },
         { name: 'email', label: 'Email', type: 'email' },
@@ -1066,7 +1069,7 @@
   /* ---------------- Login accounts (password management, Admin only) ---------------- */
   function resetPasswordModal(u, onDone) {
     var body = el('div');
-    var next = el('input', { type: 'password', placeholder: 'New password (min 6 characters)' });
+    var next = el('input', { type: 'password', placeholder: 'New password (min 8 characters)' });
     var next2 = el('input', { type: 'password', placeholder: 'Confirm new password' });
     body.appendChild(el('div', { class: 'field' }, [el('label', { text: 'New password for ' + u.name }), next]));
     body.appendChild(el('div', { class: 'field' }, [el('label', { text: 'Confirm' }), next2]));
@@ -1078,7 +1081,7 @@
         { label: 'Cancel', onClick: function (c) { c(); } },
         { label: 'Save', kind: 'gold', onClick: function (c) {
           errBox.style.display = 'none';
-          if (next.value.length < 6) { errBox.textContent = 'Password must be at least 6 characters.'; errBox.style.display = 'block'; return; }
+          if (next.value.length < 8) { errBox.textContent = 'Password must be at least 8 characters.'; errBox.style.display = 'block'; return; }
           if (next.value !== next2.value) { errBox.textContent = 'Passwords do not match.'; errBox.style.display = 'block'; return; }
           global.Auth.hashPassword(next.value).then(function (r) {
             return DB.update('users', u.id, { password_salt: r.salt, password_hash: r.hash, must_change_password: true });
@@ -1101,7 +1104,7 @@
     roleSel.addEventListener('change', refreshLink); refreshLink();
     var nameInput = el('input', { type: 'text', placeholder: 'Full name' });
     var userInput = el('input', { type: 'text', placeholder: 'Username (e.g. first initial + last name)' });
-    var passInput = el('input', { type: 'password', placeholder: 'Initial password (min 6 characters)' });
+    var passInput = el('input', { type: 'password', placeholder: 'Initial password (min 8 characters)' });
     var body = el('div');
     [['Full name', nameInput], ['User type', roleSel], ['Link to staff/parent record', linkSel],
       ['Username', userInput], ['Initial password', passInput]].forEach(function (f) {
@@ -1116,7 +1119,7 @@
         { label: 'Create', kind: 'gold', onClick: function (c) {
           errBox.style.display = 'none';
           if (!nameInput.value.trim() || !userInput.value.trim()) { errBox.textContent = 'Name and username are required.'; errBox.style.display = 'block'; return; }
-          if (passInput.value.length < 6) { errBox.textContent = 'Password must be at least 6 characters.'; errBox.style.display = 'block'; return; }
+          if (passInput.value.length < 8) { errBox.textContent = 'Password must be at least 8 characters.'; errBox.style.display = 'block'; return; }
           global.Auth.hashPassword(passInput.value).then(function (r) {
             var rec = { name: nameInput.value.trim(), username: userInput.value.trim(), role: roleSel.value,
               password_salt: r.salt, password_hash: r.hash, must_change_password: true, linked_student_ids: [] };

@@ -122,6 +122,9 @@
           trial:     onTrial,
           paid:      paid,
           suspended: s.state === 'suspended',
+          verified:  !!s.verified,
+          verifiedAt: s.verified_at || '',
+          licenceNo: s.licence_no || '',
           source:    'server'
         });
       }).catch(function () { return localResolve(); });

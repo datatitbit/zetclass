@@ -266,7 +266,7 @@
   function schoolRow(s) {
     var nameCell = el('td', {}, [
       el('div', { style: 'font-weight:700', text: s.name || '—' }),
-      el('div', { class: 'muted', style: 'font-size:.75rem' }, [document.createTextNode('/' + s.id + ' · joined ' + fmt((s.created_at || '').slice(0, 10)) + (s.created_via === 'self-signup' ? ' · signed up' : '') + ' ')].concat(isNew(s) ? [el('span', { class: 'tag req', text: 'New' })] : []))
+      el('div', { class: 'muted', style: 'font-size:.75rem' }, [document.createTextNode('/' + s.id + ' · joined ' + fmt((s.created_at || '').slice(0, 10)) + (s.created_via === 'self-signup' ? ' · signed up' : '') + ' ')].concat(isNew(s) ? [el('span', { class: 'tag req', text: 'New' })] : []).concat(s.verified_at ? [document.createTextNode(' '), el('span', { class: 'tag', style: 'background:#0f5e5e;color:#fff', text: 'Verified' })] : (s.created_via === 'self-signup' ? [document.createTextNode(' '), el('span', { class: 'tag', style: 'background:#fdecc8;color:#8a6410', text: s.licence_no ? 'Check licence' : 'Not verified' })] : [])))
     ]);
 
     var contact = el('td', { style: 'font-size:.82rem' });
@@ -393,10 +393,40 @@
         stateChip(row), el('span', { class: 'muted', style: 'font-size:.82rem', text: subLine(row, true) })
       ]));
       body.appendChild(el('div', { class: 'muted', style: 'font-size:.8rem;margin:-.4rem 0 .8rem;word-break:break-all', text: global.location.origin + '/' + row.id }));
+      body.appendChild(ownershipSection());
       body.appendChild(subscriptionSection());
       body.appendChild(contactSection());
       body.appendChild(accountsSection());
       body.appendChild(supportSection());
+    }
+
+    /* --- Ownership: is the person who registered really the owner / authorised rep? --- */
+    function ownershipSection() {
+      var kids = [];
+      var verErr = errBox();
+      if (row.verified_at) {
+        kids.push(el('div', { style: 'display:flex;gap:.5rem;align-items:center;flex-wrap:wrap' }, [
+          el('span', { class: 'tag', style: 'background:#0f5e5e;color:#fff', text: 'Verified' }),
+          el('span', { class: 'muted', style: 'font-size:.85rem', text: 'on ' + String(row.verified_at).slice(0, 10) + (row.verify_note ? ' — ' + row.verify_note : '') })
+        ]));
+        kids.push(el('div', { style: 'margin:.3rem 0;font-size:.9rem' }, [el('span', { class: 'muted', text: 'Licence / registration number: ' }), document.createTextNode(row.licence_no || '—')]));
+        kids.push(el('div', { class: 'btn-row', style: 'margin-top:.4rem' }, [el('button', { class: 'btn sm ghost', text: 'Remove Verified mark', onclick: function () {
+          var n = global.prompt('Why are you removing the Verified mark? (kept in the activity log)', ''); if (n === null) return;
+          DB.platformVerify(row.id, false, n).then(function () { U.toast('Verified mark removed.'); refreshRow(); }).catch(function (err) { showErr(verErr, msgOf(err, 'Could not update.')); });
+        } })]));
+      } else {
+        kids.push(el('div', { class: 'help', text: 'Not verified yet. Before you take payment: (1) look up the licence / registration number below with the issuing body (e.g. NaSIA for private schools, GES for public ones); (2) call or WhatsApp the contact number on file and confirm the person really is the owner or an authorised representative. Then mark the school Verified.' }));
+        kids.push(el('div', { style: 'margin:.3rem 0;font-size:.9rem' }, [el('span', { class: 'muted', text: 'Licence / registration number given by the school: ' }), document.createTextNode(row.licence_no || 'not given yet')]));
+        var noteI = el('input', { type: 'text', maxlength: '300', placeholder: 'How you checked, e.g. “NaSIA no. confirmed; called owner 5 Nov”', style: 'width:100%', 'aria-label': 'How you checked' });
+        kids.push(el('div', { class: 'field' }, [noteI]));
+        kids.push(el('div', { class: 'btn-row' }, [el('button', { class: 'btn sm gold', text: 'Mark as Verified', onclick: function () {
+          verErr.style.display = 'none';
+          if (!noteI.value.trim()) { showErr(verErr, 'Please write briefly how you checked, so the record is useful later.'); return; }
+          DB.platformVerify(row.id, true, noteI.value.trim()).then(function () { U.toast('School marked Verified.'); refreshRow(); }).catch(function (err) { showErr(verErr, msgOf(err, 'Could not update.')); });
+        } })]));
+      }
+      kids.push(verErr);
+      return section('Ownership check', kids);
     }
 
     /* --- Subscription: extend trial, record payment, plan --- */
@@ -465,6 +495,7 @@
 
       kids.push(el('hr', { style: 'border:0;border-top:1px solid var(--line);margin:1rem 0' }));
       kids.push(el('h4', { text: 'Record a payment', style: 'margin:.2rem 0 .1rem' }));
+      if (!row.verified_at) kids.push(el('div', { class: 'help', style: 'color:#8a6410;font-weight:600', text: 'Warning: this school is not Verified yet. Check the owner first (see “Ownership check” above) before confirming payment.' }));
       kids.push(el('div', { class: 'help', text: 'Use this when a school has paid. It ends the free trial, sets the plan, and unlocks editing until the date below. When that date passes the school becomes view-only automatically.' }));
       kids.push(el('div', { style: 'display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin:.5rem 0' }, [planSel, periodSel, endInput]));
       kids.push(el('div', { style: 'display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.4rem' }, [amountInput, noteInput]));
@@ -497,6 +528,14 @@
       kids.push(line('Phone', row.phone
         ? el('span', {}, [el('a', { href: 'tel:' + row.phone, text: row.phone }), wa ? document.createTextNode(' · ') : null, wa ? el('a', { href: wa, target: '_blank', rel: 'noopener', text: 'WhatsApp' }) : null])
         : document.createTextNode('—')));
+      if (row.whatsapp) {
+        var wa2 = waLink(row.whatsapp, 'Hello ' + (row.contact_name || '') + ', this is Zetranova about ' + (row.name || 'your school') + ' on Zetclass. ');
+        kids.push(line('WhatsApp', wa2 ? el('a', { href: wa2, target: '_blank', rel: 'noopener', text: row.whatsapp }) : document.createTextNode(row.whatsapp)));
+      }
+      var place = [row.locality, row.district, row.region, row.country].filter(Boolean).join(', ');
+      kids.push(line('Location', document.createTextNode(place || '—')));
+      if (row.website) kids.push(line('Website', /^https?:\/\//i.test(row.website) ? el('a', { href: row.website, target: '_blank', rel: 'noopener', text: row.website }) : document.createTextNode(row.website)));
+      if (row.postal_address) kids.push(line('Postal address', document.createTextNode(row.postal_address)));
       kids.push(el('div', { class: 'btn-row', style: 'margin:.5rem 0' }, [el('button', { class: 'btn sm', text: 'Edit school details…', onclick: openEditDetails })]));
       var noteErr = errBox();
       var note = el('textarea', { rows: '3', maxlength: '500', placeholder: 'Private notes — only you can see these (e.g. “Called 3 Oct, wants Growth plan after the trial”).', style: 'width:100%', 'aria-label': 'Private notes' });
@@ -521,7 +560,21 @@
       form.appendChild(field('School name', nameI));
       form.appendChild(field('Contact person', contactI));
       form.appendChild(field('Email', emailI, 'Password-reset emails go here. Each school needs its own email and phone number.'));
-      form.appendChild(field('Phone / WhatsApp', phoneI));
+      form.appendChild(field('School phone (calls)', phoneI, 'With country code, e.g. +233241234567.'));
+      var waI = el('input', { type: 'tel', maxlength: '30', value: row.whatsapp || '' });
+      var countryI = el('input', { type: 'text', maxlength: '60', value: row.country || '' });
+      var regionI = el('input', { type: 'text', maxlength: '80', value: row.region || '' });
+      var districtI = el('input', { type: 'text', maxlength: '80', value: row.district || '' });
+      var localityI = el('input', { type: 'text', maxlength: '120', value: row.locality || '' });
+      var postalI = el('input', { type: 'text', maxlength: '200', value: row.postal_address || '' });
+      var websiteI = el('input', { type: 'text', maxlength: '200', value: row.website || '' });
+      form.appendChild(field('Website (optional)', websiteI));
+      form.appendChild(field('WhatsApp (optional)', waI, 'With country code. Leave empty to clear.'));
+      form.appendChild(field('Country', countryI));
+      form.appendChild(field('Region', regionI));
+      form.appendChild(field('District', districtI));
+      form.appendChild(field('Locality / area', localityI));
+      form.appendChild(field('Postal address', postalI));
       form.appendChild(el('div', { class: 'help', text: 'The web address ' + global.location.origin + '/' + row.id + ' cannot be changed (all records and logins are tied to it). To use a different address, add a new school and delete this one.' }));
       var e = errBox(); form.appendChild(e);
       U.modal({
@@ -531,11 +584,11 @@
           { label: 'Save', kind: 'gold', onClick: function (c) {
             e.style.display = 'none';
             if (!nameI.value.trim()) { showErr(e, 'School name is required.'); return; }
-            DB.platformDetails(row.id, { name: nameI.value, contact_name: contactI.value, email: emailI.value, phone: phoneI.value })
+            DB.platformDetails(row.id, { name: nameI.value, contact_name: contactI.value, email: emailI.value, phone: phoneI.value,
+              whatsapp: waI.value, country: countryI.value, region: regionI.value, district: districtI.value, locality: localityI.value, postal_address: postalI.value, website: websiteI.value })
               .then(function (res) {
                 c(); U.toast(res.unchanged ? 'Nothing changed.' : 'School details saved.');
-                if (res.school) { ['name', 'contact_name', 'email', 'phone'].forEach(function (k) { row[k] = res.school[k]; }); }
-                paint(); loadSchools();
+                refreshRow();
               })
               .catch(function (err) { showErr(e, msgOf(err, 'Could not save the details.')); });
           } }
@@ -658,7 +711,7 @@
     provision: 'Created school', signup: 'School signed up', status: 'Changed status', trial: 'Changed free trial',
     plan: 'Changed plan', password_request: 'Asked to reset password (forgot password)', password_reset_self: 'Reset own password by email link', payment: 'Recorded payment', note: 'Edited note', details: 'Edited school details', password_reset: 'Issued temporary password',
     reset: 'Reset school data', delete: 'Deleted school', user_disable: 'Disabled an account', user_enable: 'Enabled an account',
-    impersonate: 'Logged in as school'
+    impersonate: 'Logged in as school', verify: 'Marked school as Verified', unverify: 'Removed Verified mark', verify_request: 'School submitted licence number'
   };
 
   function describe(r) {
@@ -667,7 +720,10 @@
     if (r.action === 'plan')   return (d.from || '—') + ' → ' + (d.to || '—');
     if (r.action === 'status') return (d.from || '—') + ' → ' + (d.to || '—');
     if (r.action === 'payment') return (PLAN_LABEL[d.plan] || d.plan || '') + ' · paid until ' + (d.to || '—') + (d.amount != null ? ' · GHS ' + d.amount : '') + (d.note ? ' · ' + d.note : '');
-    if (r.action === 'provision' || r.action === 'signup' || r.action === 'delete') return d.name || '';
+    if (r.action === 'signup') return (d.name || '') + (d.authority_declared ? ' · confirmed they are the owner/authorised representative' : '') + (d.ip ? ' · from ' + d.ip : '');
+    if (r.action === 'provision' || r.action === 'delete') return d.name || '';
+    if (r.action === 'verify' || r.action === 'unverify') return d.note || '';
+    if (r.action === 'verify_request') return d.licence_no || '';
     if (r.action === 'details') return Object.keys(d).map(function (k) { return k.replace('_', ' ') + ' changed'; }).join(', ');
     if (r.action === 'impersonate') return 'expired ' + (d.expires_at || '').slice(0, 19).replace('T', ' ');
     if (r.action === 'password_request') return (d.username || '') + (d.email_sent ? ' · email sent' : ' · email not sent');

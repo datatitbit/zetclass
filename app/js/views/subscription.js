@@ -58,6 +58,7 @@
       // read from the server, so there is nothing for the school to enter here.
       // Offline licence keys only apply to a standalone/local install.
       if (st.source === 'server') {
+        if (isAdmin) container.appendChild(verifyCard(st, function () { render(container); }));
         container.appendChild(howToSubscribe(st));
         return;
       }
@@ -115,6 +116,49 @@
     var card = el('div', { class: 'card' }, [el('h3', { text: 'How to ' + (verb === 'subscribe' ? 'subscribe' : 'renew') }), steps, actions]);
     if (support) card.appendChild(el('div', { class: 'help', style: 'margin-top:.6rem', text: 'Contact: ' + support }));
     else card.appendChild(el('div', { class: 'help', style: 'margin-top:.6rem', text: 'Paste the copied message into a WhatsApp or email message to Zetranova.' }));
+    return card;
+  }
+
+  // "Verify your school" — the school's own proof of ownership. The Admin enters
+  // the school's licence / registration number; Zetranova checks it against the
+  // official record and the owner, then marks the school Verified. Payment
+  // confirmation waits for this, so it protects schools from impersonators.
+  function verifyCard(st, rerender) {
+    var contact = global.ZETCLASS_CONTACT || {};
+    var waDigits = String(contact.whatsapp || '').replace(/\D+/g, '');
+    var card = el('div', { class: 'card' }, [el('h3', { text: 'Verify your school' })]);
+    if (st.verified) {
+      card.appendChild(el('div', { class: 'row', style: 'display:flex;gap:.5rem;align-items:center;flex-wrap:wrap' }, [
+        el('span', { class: 'chip', style: 'background:#0f5e5e;color:#fff;padding:.15rem .6rem;border-radius:99px;font-weight:600', text: 'Verified ✓' }),
+        el('span', { class: 'muted', text: st.verifiedAt ? 'Confirmed by Zetranova on ' + String(st.verifiedAt).slice(0, 10) + '.' : 'Confirmed by Zetranova.' })
+      ]));
+      card.appendChild(el('div', { class: 'help', style: 'margin-top:.4rem', text: 'Your licence / registration number: ' + (st.licenceNo || '—') + '. Thank you — nothing more to do here.' }));
+      return card;
+    }
+    var pending = !!st.licenceNo;
+    card.appendChild(el('div', { class: 'help', text: pending
+      ? 'We have your number (' + st.licenceNo + ') and Zetranova will check it with the school’s owner. You can correct it below if it was wrong.'
+      : 'To protect real schools from impersonators, Zetranova confirms that the person who registered is the owner or an authorised representative. Enter your school’s licence or registration number (for example your NaSIA or Ghana Education Service number).' }));
+    var inp = el('input', { type: 'text', maxlength: '80', value: st.licenceNo || '', placeholder: 'Licence / registration number', style: 'width:100%' });
+    var status = el('div', { class: 'help', style: 'margin-top:.4rem' });
+    var btn = el('button', { class: 'btn gold', type: 'button', text: pending ? 'Update number' : 'Submit for checking', onclick: function () {
+      var v = inp.value.trim();
+      if (v.length < 3) { status.textContent = 'Please type your school’s licence or registration number.'; status.style.color = '#b91c1c'; return; }
+      btn.disabled = true;
+      DB.submitVerification(v).then(function () {
+        U.toast('Thank you — we will check it and mark your school Verified.');
+        rerender();
+      }).catch(function (e) {
+        btn.disabled = false; status.textContent = (e && e.message) || 'Could not save. Please try again.'; status.style.color = '#b91c1c';
+      });
+    } });
+    card.appendChild(el('div', { class: 'field' }, [el('label', { text: 'Licence / registration number' }), inp]));
+    card.appendChild(el('div', { class: 'btn-row' }, [btn]));
+    card.appendChild(status);
+    if (pending && waDigits) {
+      var msg = 'Hello Zetranova, please verify my school on Zetclass.\nSchool: ' + (st.school || '') + '\nLicence / registration number: ' + st.licenceNo + '\nI am the owner / authorised representative.';
+      card.appendChild(el('div', { class: 'btn-row', style: 'margin-top:.4rem' }, [el('a', { class: 'btn ghost', href: 'https://wa.me/' + waDigits + '?text=' + encodeURIComponent(msg), target: '_blank', rel: 'noopener', text: 'Tell us on WhatsApp' })]));
+    }
     return card;
   }
 
