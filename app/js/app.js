@@ -1055,15 +1055,21 @@
     }
     paintRegion();
     var districtIn = U.el('input', { type: 'text', id: 'f-district', name: 'district', maxlength: '80', placeholder: 'e.g. Ayawaso West', autocomplete: 'address-level2' });
-    var localityIn = U.el('input', { type: 'text', id: 'f-locality', name: 'locality', maxlength: '120', placeholder: 'Town, suburb or area, e.g. East Legon' });
+    var localityIn = U.el('input', { type: 'text', id: 'f-locality', name: 'locality', maxlength: '120', placeholder: 'Town or suburb, e.g. East Legon' });
     var postalIn   = U.el('textarea', { id: 'f-postal_address', name: 'postal_address', rows: '2', maxlength: '200', placeholder: 'e.g. P. O. Box 123, Accra, or street address / digital address (GA-123-4567)', autocomplete: 'street-address' });
     var websiteIn  = U.el('input', { type: 'text', id: 'f-website', name: 'website', maxlength: '200', placeholder: 'e.g. www.myschool.edu.gh', autocomplete: 'url', autocapitalize: 'none', spellcheck: 'false', inputmode: 'url' });
     function optField(label, node) { return U.el('div', { class: 'field' }, [U.el('label', { text: label }), node, reqNote(false)]); }
-    var locationDetails = (U.el('details', { class: 'optional-details', style: 'margin:.2rem 0 .8rem' }, [
-      U.el('summary', { text: 'Add website, region and postal address', style: 'cursor:pointer;font-weight:600;color:var(--teal-dark,#0f5e5e)' }),
-      U.el('div', { class: 'help', text: 'Helps us find and serve you, and prints on report cards. You can add or change these later in Settings.', style: 'margin:.4rem 0' }),
-      optField('Website', websiteIn), optField('Region', regionHost), optField('District', districtIn), optField('Locality / area', localityIn), optField('Postal address', postalIn)
-    ]));
+    // Always open: the person simply fills in what they want and ignores the rest.
+    function spanned(f) { f.classList.add('span2'); return f; }
+    var locationDetails = U.el('div', { class: 'optional-block' }, [
+      U.el('div', { class: 'help', text: 'Helps us find and serve you, and prints on report cards. Fill in what you like and skip the rest — you can add or change these later in Settings.', style: 'margin:-.2rem 0 .7rem' }),
+      U.el('div', { class: 'auth-grid two' }, [
+        spanned(optField('Website', websiteIn)),
+        optField('Region', regionHost), optField('District', districtIn),
+        spanned(optField('Locality / area', localityIn)),
+        spanned(optField('Postal address', postalIn))
+      ])
+    ]);
     // The password box gets a Show/Hide button instead of a "type it twice" box:
     // fewer fields, and people can simply see what they typed.
     var toggle = U.el('button', { type: 'button', class: 'pw-toggle', text: 'Show', 'aria-label': 'Show password', onclick: function () {
