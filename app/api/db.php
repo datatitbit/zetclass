@@ -23,7 +23,16 @@ if (!defined('DEFAULT_TRIAL_DAYS')) { define('DEFAULT_TRIAL_DAYS', 30); }
 // Bump when the table layout changes. db_connect() only re-runs the (slow)
 // schema setup when the database reports an older version, instead of running
 // ~20 CREATE/ALTER statements on every single request like it used to.
-if (!defined('SCHEMA_VERSION')) { define('SCHEMA_VERSION', 5); }
+if (!defined('SCHEMA_VERSION')) { define('SCHEMA_VERSION', 6); }
+
+/* One school per NAME. Two names count as the same school when they match after ignoring
+ * capital letters, spaces, punctuation and apostrophes ("St. Mary's" = "st marys" = "ST MARYS").
+ * Stored in schools.name_key, which has a UNIQUE index so the database itself refuses a clash. */
+function school_name_key($name) {
+    $s = function_exists('mb_strtolower') ? mb_strtolower((string)$name, 'UTF-8') : strtolower((string)$name);
+    $s = preg_replace('/[^\p{L}\p{N}]+/u', '', $s);
+    return substr((string)$s, 0, 150);
+}
 
 function db_connect($cfg) {
     if ($cfg['DB_DRIVER'] === 'mysql') {
@@ -87,7 +96,8 @@ function db_bootstrap_schema($pdo, $driver, $jsonType) {
         phone VARCHAR(40),
         contact_name VARCHAR(120),
         created_via VARCHAR(20),
-        notes VARCHAR(500)
+        notes VARCHAR(500),
+        name_key VARCHAR(160)
     )$tbl");
     // The key INCLUDES school_id. It used to be (collection, id) alone, which
     // meant two schools could not both own a record called e.g. "cl-b1" or
@@ -151,10 +161,17 @@ function db_bootstrap_schema($pdo, $driver, $jsonType) {
     // SQLite; that failure is the "already migrated" case, so it is ignored.
     foreach ([
         'trial_ends_at VARCHAR(30)', 'paid_until VARCHAR(30)', 'email VARCHAR(160)',
-        'phone VARCHAR(40)', 'contact_name VARCHAR(120)', 'created_via VARCHAR(20)', 'notes VARCHAR(500)',
+        'phone VARCHAR(40)', 'contact_name VARCHAR(120)', 'created_via VARCHAR(20)', 'notes VARCHAR(500)', 'name_key VARCHAR(160)',
     ] as $colDef) {
         try { $pdo->exec("ALTER TABLE schools ADD COLUMN $colDef"); } catch (Throwable $e) {}
     }
+    // Fill the name key for schools that existed before it did. If two old schools already share a
+    // name, only the first gets the key (the other stays NULL), so the unique index below can still be built.
+    try {
+        foreach ($pdo->query("SELECT id, name FROM schools WHERE name_key IS NULL")->fetchAll() as $r) {
+            try { $pdo->prepare("UPDATE schools SET name_key=? WHERE id=?")->execute([school_name_key($r['name']), $r['id']]); } catch (Throwable $e) {}
+        }
+    } catch (Throwable $e) {}
 
     db_migrate_documents_pk($pdo, $isMysql, $jsonType);
 
@@ -166,6 +183,7 @@ function db_bootstrap_schema($pdo, $driver, $jsonType) {
         "CREATE INDEX idx_audit_school ON platform_audit (school_id)",
         "CREATE UNIQUE INDEX uq_schools_email ON schools (email)",
         "CREATE UNIQUE INDEX uq_schools_phone ON schools (phone)",
+        "CREATE UNIQUE INDEX uq_schools_name_key ON schools (name_key)",
         "CREATE INDEX idx_pwreset_token ON password_resets (token_hash)",
         "CREATE INDEX idx_pwreset_school ON password_resets (school_id)",
     ] as $ix) { try { $pdo->exec($ix); } catch (Throwable $e) {} }
@@ -351,7 +369,7 @@ function db_seed_school($pdo, $school, $seed, $name = null, $opts = []) {
     $exists = $pdo->prepare("SELECT id FROM schools WHERE id=?");
     $exists->execute([$school]);
     if (!$exists->fetch()) {
-        $reg = $pdo->prepare("INSERT INTO schools(id,name,status,plan,created_at,trial_ends_at,email,phone,contact_name,created_via) VALUES(?,?,?,?,?,?,?,?,?,?)");
+        $reg = $pdo->prepare("INSERT INTO schools(id,name,status,plan,created_at,trial_ends_at,email,phone,contact_name,created_via,name_key) VALUES(?,?,?,?,?,?,?,?,?,?,?)");
         $reg->execute([
             $school,
             $schoolName,
@@ -363,6 +381,7 @@ function db_seed_school($pdo, $school, $seed, $name = null, $opts = []) {
             ($opts['phone'] ?? '') !== '' ? $opts['phone'] : null,
             ($opts['contact_name'] ?? '') !== '' ? $opts['contact_name'] : null,
             $opts['created_via'] ?? 'platform',
+            school_name_key($schoolName),
         ]);
     }
 

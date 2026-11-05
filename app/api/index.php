@@ -223,6 +223,19 @@ function valid_school_slug($sid, $reserved) {
  * (the operator's live "Add school" preview); this copy is what actually
  * runs when a caller omits school_id (or bypasses the UI and calls the API
  * directly), so it must stay in sync with that one. */
+/* Is this school name already used by another school? (Compared by school_name_key(), so capitals,
+ * spaces and punctuation do not matter.) $exceptId lets a school keep or re-save its own name. */
+function school_name_taken($pdo, $name, $exceptId = null) {
+    $st = $pdo->prepare("SELECT id FROM schools WHERE name_key=?");
+    $st->execute([school_name_key($name)]);
+    foreach ($st->fetchAll() as $r) { if ($exceptId === null || $r['id'] !== $exceptId) { return $r['id']; } }
+    return null;
+}
+function school_name_taken_msg($name) {
+    return 'A school called “' . $name . '” is already registered on Zetclass. If it is yours, sign in instead. '
+         . 'If it is a different school, add your town or area to the name, for example “' . $name . ', Kumasi”.';
+}
+
 function slugify_school_name($name, $maxLen = 40) {
     $s = strtolower((string)$name);
     $s = str_replace(["'", "\xE2\x80\x99"], '', $s); // apostrophes (incl. UTF-8 curly ’)
@@ -529,6 +542,12 @@ if ($head === 'register' && $method === 'POST') {
     $fieldErrors = array_filter(['school_name' => $e1, 'contact_name' => $e2, 'email' => $e3, 'phone' => $e4, 'password' => $e5, 'accept_terms' => $e6]);
     if ($fieldErrors) { out(['error' => 'Please fix the highlighted fields.', 'fields' => $fieldErrors], 400); }
 
+    // One school per NAME: a second "ABC School" (any capitals / spacing / punctuation) is refused.
+    if (school_name_taken($pdo, $schoolName)) {
+        $m = school_name_taken_msg($schoolName);
+        out(['error' => $m, 'fields' => ['school_name' => $m]], 409);
+    }
+
     // One free trial per email / phone number (stops trial-farming). A genuine
     // second campus can ask us to add it by hand from the developer console.
     $dup = $pdo->prepare("SELECT id FROM schools WHERE LOWER(email)=? OR phone=?");
@@ -563,6 +582,11 @@ if ($head === 'register' && $method === 'POST') {
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) { $pdo->rollBack(); }
         error_log('Zetclass signup failed: ' . $e->getMessage());
+        // Two people submitting at the same instant: the DATABASE's unique rules caught the clash.
+        if (stripos($e->getMessage(), 'unique') !== false || stripos($e->getMessage(), 'duplicate') !== false) {
+            $taken = school_name_taken($pdo, $schoolName) ? school_name_taken_msg($schoolName) : 'A school is already registered with this name, email or phone number.';
+            out(['error' => $taken, 'fields' => ['school_name' => $taken]], 409);
+        }
         out(['error' => 'We could not create your account right now. Please try again in a moment.'], 500);
     }
     rate_limit($pdo, 'reg:' . $ip, 5, 3600);
@@ -616,6 +640,7 @@ if ($head === 'provision' && $method === 'POST') {
     if (!$isPlat) { out(['error' => 'Forbidden'], 403); }
     $b = body();
     $name = $b['name'] ?? 'New School';
+    if (school_name_taken($pdo, $name)) { out(['error' => school_name_taken_msg($name)], 409); }
     if (!empty($b['school_id'])) {
         $sid = $b['school_id'];
         if (!valid_school_slug($sid, $RESERVED_SLUGS)) {
@@ -830,6 +855,7 @@ if ($head === 'platform' && $arg === 'details' && $method === 'POST') {
     if (array_key_exists('name', $b)) {
         list($v, $err) = valid_school_name($b['name']);
         if ($err) { out(['error' => $err], 400); }
+        if (school_name_taken($pdo, $v, $sid)) { out(['error' => school_name_taken_msg($v)], 409); }
         $new['name'] = $v;
     }
     if (array_key_exists('contact_name', $b)) {
@@ -862,6 +888,7 @@ if ($head === 'platform' && $arg === 'details' && $method === 'POST') {
         foreach ($new as $k => $v) { $set[] = "$k=?"; $vals[] = $v; }   // $k is from the fixed list above, never user text
         $vals[] = $sid;
         $pdo->prepare("UPDATE schools SET " . implode(',', $set) . " WHERE id=?")->execute($vals);
+        if (isset($new['name'])) { $pdo->prepare("UPDATE schools SET name_key=? WHERE id=?")->execute([school_name_key($new['name']), $sid]); }
 
         $ps = $pdo->prepare("SELECT data FROM singletons WHERE school_id=? AND name='school'");
         $ps->execute([$sid]);

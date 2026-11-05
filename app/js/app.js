@@ -909,26 +909,44 @@
 
     var schoolIn = U.el('input', { type: 'text', autocomplete: 'organization', placeholder: 'e.g. St. Mary’s Basic School', maxlength: '120' });
     var emailIn  = U.el('input', { type: 'email', autocomplete: 'email', inputmode: 'email', placeholder: 'you@example.com', maxlength: '160', autocapitalize: 'none', spellcheck: 'false' });
-    var phoneIn  = U.el('input', { type: 'tel', autocomplete: 'tel', inputmode: 'tel', placeholder: 'e.g. 24 123 4567', maxlength: '24' });
+    // autocomplete "tel-national" asks the browser to fill the number WITHOUT its country code.
+    var phoneIn  = U.el('input', { type: 'tel', autocomplete: 'tel-national', inputmode: 'numeric', placeholder: 'e.g. 24 123 4567', maxlength: '20' });
     // Country code: Ghana is pre-selected; the number is saved in full international form (+233…).
     var COUNTRIES = [['+233', 'Ghana +233'], ['+234', 'Nigeria +234'], ['+228', 'Togo +228'], ['+225', 'Côte d’Ivoire +225'], ['+226', 'Burkina Faso +226'],
       ['+232', 'Sierra Leone +232'], ['+231', 'Liberia +231'], ['+220', 'Gambia +220'], ['+221', 'Senegal +221'], ['+254', 'Kenya +254'],
       ['+256', 'Uganda +256'], ['+255', 'Tanzania +255'], ['+27', 'South Africa +27'], ['+44', 'United Kingdom +44'], ['+1', 'USA / Canada +1'], ['other', 'Other (type the full number with +)']];
     var countrySel = U.el('select', { 'aria-label': 'Country code', style: 'flex:0 0 auto;max-width:48%' });
     COUNTRIES.forEach(function (c) { countrySel.appendChild(U.el('option', { value: c[0], text: c[1] })); });
+    // With a country chosen, the box takes ONLY the main number: digits only, no "+", no country
+    // code (typed or pasted ones are removed), no leading 0.  024 350 6373 -> 243506373.
+    // "Other" lets the person type the whole international number with a +.
+    function tidyPhone() {
+      if (countrySel.value === 'other') { phoneIn.value = phoneIn.value.replace(/[^\d+ ]/g, ''); return; }
+      var raw = phoneIn.value, d = raw.replace(/\D+/g, ''), code = countrySel.value.replace(/\D+/g, '');
+      var hadPlus = raw.trim().charAt(0) === '+';
+      if (code && d.indexOf(code) === 0 && (hadPlus || d.length >= code.length + 9)) d = d.slice(code.length);
+      d = d.replace(/^0+/, '');
+      phoneIn.value = d;
+    }
     function composedPhone() {
+      tidyPhone();
       var raw = phoneIn.value.trim();
-      if (raw.charAt(0) === '+' || countrySel.value === 'other') return raw;       // already in full form
-      var digits = raw.replace(/\D+/g, '').replace(/^0+/, '');                      // 024… -> 24…
-      return digits ? countrySel.value + digits : '';
+      if (countrySel.value === 'other') return raw;                                 // already in full form
+      return raw ? countrySel.value + raw : '';
+    }
+    function phoneHelp() {
+      var other = countrySel.value === 'other';
+      phoneIn.placeholder = other ? '+44 20 7946 0958' : 'e.g. 24 123 4567';
+      phoneIn.setAttribute('inputmode', other ? 'tel' : 'numeric');
     }
     var passIn   = U.el('input', { type: 'password', autocomplete: 'new-password', placeholder: 'At least 8 characters', maxlength: '128' });
 
     addField('school_name', 'School name', schoolIn);
     addField('email', 'Email address', emailIn, 'Your password-reset link is sent here.');
-    addField('phone', 'Phone or WhatsApp number', phoneIn, 'Choose your country code, then type your number. We only use it to help you if you get stuck.',
+    addField('phone', 'Phone or WhatsApp number', phoneIn, 'Pick your country, then type only your main number, for example 24 123 4567. The country code is added for you. We only use it to help you if you get stuck.',
       U.el('div', { style: 'display:flex;gap:.5rem' }, [countrySel, phoneIn]));
-    countrySel.addEventListener('change', function () { if (errEls.phone.textContent) setError('phone', checks.phone()); });
+    phoneIn.addEventListener('input', tidyPhone);
+    countrySel.addEventListener('change', function () { phoneHelp(); tidyPhone(); if (errEls.phone.textContent) setError('phone', checks.phone()); });
     // The password box gets a Show/Hide button instead of a "type it twice" box:
     // fewer fields, and people can simply see what they typed.
     var toggle = U.el('button', { type: 'button', class: 'pw-toggle', text: 'Show', 'aria-label': 'Show password', onclick: function () {
@@ -1039,7 +1057,7 @@
     if (support) card.appendChild(U.el('p', { class: 'help login-alt', text: 'Need help? ' + support }));
     wrap.appendChild(card);
     root.appendChild(wrap);
-    schoolIn.focus();
+    schoolIn.focus({ preventScroll: true });   // put the cursor in the first box WITHOUT scrolling the page to it
   }
 
   // The moment after signup: tell them exactly what they now have and where to

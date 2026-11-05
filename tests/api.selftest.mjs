@@ -93,7 +93,7 @@ section('1. Signup validation (every required field, plain-English errors)');
 // ---------------------------------------------------------------
 section('2. Signup happy path + many schools in ONE database');
 const A = { school: "St. Mary's Basic School", email: 'Head@StMarys.example', phone: '+233 24 123 4567', person: 'Ama Mensah' };
-const B = { school: "St. Mary's Basic School", email: 'other@school.example', phone: '+233205550001', person: 'Kofi Boateng' }; // same NAME, different school
+const B = { school: "St. Mary's Junior School", email: 'other@school.example', phone: '+233205550001', person: 'Kofi Boateng' }; // similar name, different school
 const C = { school: 'Bright Future Academy', email: 'bf@school.example', phone: '+233205550002', person: 'Esi Owusu' };
 const D = { school: 'Tamper Test School', email: 'tamper@school.example', phone: '+233205550003', person: null };   // D signs up with NO contact person (it is optional)
 let sa, sb, sc, sd;
@@ -104,8 +104,14 @@ let sa, sb, sc, sd;
   check('A: trial is 30 days', sa.json.trial_days === 30 && sa.json.trial_ends_at === ymd(30), sa.json);
   check('A: returns a ready-to-use Admin session', sa.json.role === 'Admin' && sa.json.user.username === 'admin');
   sb = await call('POST', 'register', good(B));
-  check('school B (same name, different school) created — proves many schools fit in one database', sb.status === 201, sb.json);
-  check('B: unique address (-2)', sb.json.school_id === 'st-marys-basic-school-2', sb.json.school_id);
+  check('school B (a different school) created — proves many schools fit in one database', sb.status === 201, sb.json);
+  check('B: its own address', sb.json.school_id === 'st-marys-junior-school', sb.json.school_id);
+  // ONE SCHOOL PER NAME — capitals, spacing and punctuation do not make a "different" school
+  for (const [label, nm] of [['the exact same name', "St. Mary's Basic School"], ['different capitals', "ST. MARY'S BASIC SCHOOL"], ['no punctuation / extra spaces', 'st  marys   basic school'], ['dots and dashes', "S.t Marys-Basic School"]]) {
+    const dn = await call('POST', 'register', good({ school: nm, email: 'new-' + Math.abs(nm.length * 7919 % 9973) + '@dupname.example', phone: '+2332066' + String(10000 + (nm.length * 131) % 8000).padStart(5, '0'), person: null }));
+    check('signup refused for ' + label + ' (409, the school-name box explains it)', dn.status === 409 && dn.json.fields && dn.json.fields.school_name && /already registered/.test(dn.json.fields.school_name), dn.json);
+  }
+
   sc = await call('POST', 'register', good(C));
   check('school C created', sc.status === 201 && sc.json.school_id === 'bright-future-academy', sc.json);
   sd = await call('POST', 'register', good(D));
@@ -271,7 +277,7 @@ section('8. Suspend, expiry and the server-side read-only lock');
   check('reactivated school works again', back.status === 200);
 
   // B: expire the trial
-  await call('POST', 'trial', { school_id: 'st-marys-basic-school-2', trial_ends_at: ymd(-1) }, tD);
+  await call('POST', 'trial', { school_id: 'st-marys-junior-school', trial_ends_at: ymd(-1) }, tD);
   const sub = await call('GET', 'subscription', null, tB);
   check('trial in the past → state "expired"', sub.json.state === 'expired' && sub.json.days_left === -1, sub.json);
   const w1 = await call('POST', 'students', { first_name: 'New', last_name: 'Pupil' }, tB);
@@ -282,12 +288,12 @@ section('8. Suspend, expiry and the server-side read-only lock');
   const rd = await call('GET', 'students', null, tB);
   const ex = await call('GET', 'export', null, tB);
   check('…but can still READ and EXPORT its data', rd.status === 200 && rd.json.length === 1 && ex.status === 200);
-  const login2 = await call('POST', 'auth/login', { username: 'admin', password: 'Sunrise-2026!', school_id: 'st-marys-basic-school-2' });
+  const login2 = await call('POST', 'auth/login', { username: 'admin', password: 'Sunrise-2026!', school_id: 'st-marys-junior-school' });
   check('…and can still sign in', login2.status === 200);
-  const devWrite = await call('POST', 'students', { id: 'dev-added', first_name: 'Dev', last_name: 'Added' }, tD, { school: 'st-marys-basic-school-2' });
+  const devWrite = await call('POST', 'students', { id: 'dev-added', first_name: 'Dev', last_name: 'Added' }, tD, { school: 'st-marys-junior-school' });
   check('developer can still write for support while a school is expired', devWrite.status === 201, devWrite);
   // developer renews → unlocked
-  await call('POST', 'platform/payment', { school_id: 'st-marys-basic-school-2', plan: 'basic', days: 120 }, tD);
+  await call('POST', 'platform/payment', { school_id: 'st-marys-junior-school', plan: 'basic', days: 120 }, tD);
   const w4 = await call('POST', 'students', { first_name: 'After', last_name: 'Payment' }, tB);
   check('after the developer records a payment the school is editable again', w4.status === 201, w4);
   // A paid period that has run out must lock by itself. The developer API refuses to
@@ -296,9 +302,9 @@ section('8. Suspend, expiry and the server-side read-only lock');
     const { execFileSync } = await import('node:child_process');
     if (process.env.MYSQL_CMD) {
       // MySQL/MariaDB test database: MYSQL_CMD = path to the mysql client; MYSQL_ARGS = "-uroot -h127.0.0.1 -P3307 dbname"
-      execFileSync(process.env.MYSQL_CMD, [...process.env.MYSQL_ARGS.split(' '), '-e', `UPDATE schools SET paid_until='${ymd(-2)}' WHERE id='st-marys-basic-school-2'`]);
+      execFileSync(process.env.MYSQL_CMD, [...process.env.MYSQL_ARGS.split(' '), '-e', `UPDATE schools SET paid_until='${ymd(-2)}' WHERE id='st-marys-junior-school'`]);
     } else {
-      execFileSync(process.env.PHP_BIN, ['-r', `$p=new PDO('sqlite:'.getenv('SQLITE_DB'));$p->prepare('UPDATE schools SET paid_until=? WHERE id=?')->execute(['${ymd(-2)}','st-marys-basic-school-2']);`], { env: { ...process.env } });
+      execFileSync(process.env.PHP_BIN, ['-r', `$p=new PDO('sqlite:'.getenv('SQLITE_DB'));$p->prepare('UPDATE schools SET paid_until=? WHERE id=?')->execute(['${ymd(-2)}','st-marys-junior-school']);`], { env: { ...process.env } });
     }
     const lapsed = await call('GET', 'subscription', null, tB);
     const wl = await call('POST', 'students', { first_name: 'Late', last_name: 'Payer' }, tB);
@@ -384,6 +390,10 @@ section('10. Developer adds a school by hand; reset');
   check('…and it has no demo pupils', stu.json.length === 0);
   const dup = await call('POST', 'provision', { name: 'Hand Added Twin', email: 'OWNER@hand.example', contact_name: 'Someone' }, tD);
   check('developer adding a school with an email already in use is refused (409)', dup.status === 409, dup);
+  const dupN = await call('POST', 'provision', { name: 'hand ADDED school', contact_name: 'Someone Else' }, tD);
+  check('developer adding a school whose NAME already exists is refused (409)', dupN.status === 409 && /already registered/.test(dupN.json.error || ''), dupN);
+  const town = await call('POST', 'provision', { name: "St. Mary's Basic School, Kumasi", email: 'kumasi@dupname.example' }, tD);
+  check('…but adding the town makes it a different name and is allowed', town.status === 201, town);
   const d = await call('POST', 'provision', { name: 'Demo Sandbox', demo: true }, tD);
   const dl = await call('POST', 'auth/login', { username: 'admin', password: '123', school_id: d.json.school_id });
   check('explicit demo school still available for training (admin / 123)', d.status === 201 && dl.status === 200);
@@ -409,6 +419,7 @@ section('10. Developer adds a school by hand; reset');
   check('a school Admin cannot edit school details (403)', (await edit({ name: 'Mine Now' }, tA)).status === 403);
   check('editing an unknown school → 404', (await call('POST', 'platform/details', { school_id: 'no-such-school', name: 'Nope Academy' }, tD)).status === 404);
   check('details: a name that is too short is refused (400)', (await edit({ name: 'ab' })).status === 400);
+  check('details: renaming a school to a name another school already has is refused (409)', (await edit({ name: 'Bright Future ACADEMY' })).status === 409);
   check('details: a bad email is refused (400)', (await edit({ email: 'not-an-email' })).status === 400);
   check('details: a bad phone is refused (400)', (await edit({ phone: '12' })).status === 400);
   check('details: an email already used by another school is refused (409)', (await edit({ email: 'BF@school.example' })).status === 409);
@@ -455,31 +466,31 @@ else {
   check('missing fields are refused (400)', (await call('POST', 'auth/forgot', { school_id: '', username: '' })).status === 400);
 
   // School B: the normal, self-service route
-  const tB1 = (await call('POST', 'auth/login', { username: 'admin', password: 'Sunrise-2026!', school_id: 'st-marys-basic-school-2' })).json.token;
-  const realB = await forgot('st-marys-basic-school-2', 'admin');
+  const tB1 = (await call('POST', 'auth/login', { username: 'admin', password: 'Sunrise-2026!', school_id: 'st-marys-junior-school' })).json.token;
+  const realB = await forgot('st-marys-junior-school', 'admin');
   check('Administrator request: same friendly answer as an unknown account', realB.status === 200 && realB.json.message === ghost.json.message, realB.json);
   const mailB = mailbox().slice(m0).pop();
   const linkB = linkIn(mailB);
   check('a reset email goes to the school REGISTERED address', /^To: .*other@school\.example/mi.test(mailB || ''), (mailB || '').slice(0, 200));
-  check('the email holds a one-time link on the real site address (zetclass.com) with a 64-character token', !!linkB && linkB.school === 'st-marys-basic-school-2', mailB);
-  check('the developer can see the request (email sent)', (await reqs()).some(r => r.school_id === 'st-marys-basic-school-2' && r.email_sent == 1));
+  check('the email holds a one-time link on the real site address (zetclass.com) with a 64-character token', !!linkB && linkB.school === 'st-marys-junior-school', mailB);
+  check('the developer can see the request (email sent)', (await reqs()).some(r => r.school_id === 'st-marys-junior-school' && r.email_sent == 1));
   if (dbAvailable()) check('only a fingerprint of the token is stored, never the token itself', dbScalar("SELECT COUNT(*) FROM password_resets WHERE token_hash='" + linkB.token + "'") === '0');
 
-  const wrongTok = await call('POST', 'auth/reset', { school_id: 'st-marys-basic-school-2', token: 'a'.repeat(64), password: 'Fresh-Start-2026!' });
-  const junkTok = await call('POST', 'auth/reset', { school_id: 'st-marys-basic-school-2', token: 'not-a-token', password: 'Fresh-Start-2026!' });
+  const wrongTok = await call('POST', 'auth/reset', { school_id: 'st-marys-junior-school', token: 'a'.repeat(64), password: 'Fresh-Start-2026!' });
+  const junkTok = await call('POST', 'auth/reset', { school_id: 'st-marys-junior-school', token: 'not-a-token', password: 'Fresh-Start-2026!' });
   const wrongSchool = await call('POST', 'auth/reset', { school_id: 'bright-future-academy', token: linkB.token, password: 'Fresh-Start-2026!' });
   check('a wrong, malformed, or other-school token is refused (400)', wrongTok.status === 400 && junkTok.status === 400 && wrongSchool.status === 400);
-  const weak = await call('POST', 'auth/reset', { school_id: 'st-marys-basic-school-2', token: linkB.token, password: 'short' });
+  const weak = await call('POST', 'auth/reset', { school_id: 'st-marys-junior-school', token: linkB.token, password: 'short' });
   check('a weak new password is refused with a plain message, and the link is NOT used up', weak.status === 400 && weak.json.fields && weak.json.fields.password, weak.json);
-  const done = await call('POST', 'auth/reset', { school_id: 'st-marys-basic-school-2', token: linkB.token, password: 'Fresh-Start-2026!' });
+  const done = await call('POST', 'auth/reset', { school_id: 'st-marys-junior-school', token: linkB.token, password: 'Fresh-Start-2026!' });
   check('the link sets the new password (200)', done.status === 200 && done.json.ok === true, done.json);
-  check('old password stops working', (await call('POST', 'auth/login', { username: 'admin', password: 'Sunrise-2026!', school_id: 'st-marys-basic-school-2' })).status === 401);
-  const nowLogin = await call('POST', 'auth/login', { username: 'admin', password: 'Fresh-Start-2026!', school_id: 'st-marys-basic-school-2' });
+  check('old password stops working', (await call('POST', 'auth/login', { username: 'admin', password: 'Sunrise-2026!', school_id: 'st-marys-junior-school' })).status === 401);
+  const nowLogin = await call('POST', 'auth/login', { username: 'admin', password: 'Fresh-Start-2026!', school_id: 'st-marys-junior-school' });
   check('new password works, with no forced change', nowLogin.status === 200 && nowLogin.json.user.must_change_password === false);
-  check('the link cannot be used a second time', (await call('POST', 'auth/reset', { school_id: 'st-marys-basic-school-2', token: linkB.token, password: 'Another-Pass-2026!' })).status === 400);
+  check('the link cannot be used a second time', (await call('POST', 'auth/reset', { school_id: 'st-marys-junior-school', token: linkB.token, password: 'Another-Pass-2026!' })).status === 400);
   check('a session opened BEFORE the reset is signed out', (await call('GET', 'classes', null, tB1)).status === 401);
   check('the new session works', (await call('GET', 'classes', null, nowLogin.json.token)).status === 200);
-  check('the finished request leaves the developer list', !(await reqs()).some(r => r.school_id === 'st-marys-basic-school-2'));
+  check('the finished request leaves the developer list', !(await reqs()).some(r => r.school_id === 'st-marys-junior-school'));
 
   // School C: link expires after an hour -> developer fallback
   await forgot('bright-future-academy', 'admin');

@@ -203,14 +203,18 @@ table.data td.actions { white-space: nowrap; }
 /* ---- Login (hero) ---- */
 .login-wrap {
   position:fixed; inset:0; margin:0; max-width:none; width:100%; min-height:100vh;
-  display:flex; align-items:center; justify-content:center; padding:1.5rem; overflow-y:auto;
+  /* "Safe" centring: the card has margin:auto, so it sits in the middle when there is room and
+     starts at the top (fully scrollable) when it is taller than the screen. align-items:center
+     would push the top of a tall card off-screen where it can never be scrolled to. */
+  display:flex; padding:1.5rem 1rem; overflow-y:auto;
   background:
     radial-gradient(1100px 600px at 12% -10%, rgba(224,171,43,.20), transparent 60%),
     radial-gradient(900px 700px at 110% 120%, rgba(20,128,127,.55), transparent 55%),
     linear-gradient(150deg, var(--teal-deep), var(--teal-dark) 55%, var(--teal));
 }
+@media (max-height: 820px) { .login-wrap .card { padding: 1.4rem 1.5rem 1.2rem; } .login-wrap .card .field { margin-bottom: .6rem; } .login-badge { width:48px; height:48px; font-size:1.4rem; margin-bottom:.6rem; } }
 .login-wrap .card {
-  max-width: 460px; width:100%; padding: 2rem 1.9rem 1.7rem; border:0; border-radius: 20px;
+  margin:auto; max-width: 460px; width:100%; padding: 2rem 1.9rem 1.7rem; border:0; border-radius: 20px;
   box-shadow: 0 24px 60px rgba(0,0,0,.32); position:relative; overflow:hidden;
 }
 .login-wrap .card::before { content:""; position:absolute; top:0; left:0; right:0; height:5px; background: linear-gradient(90deg, var(--gold), var(--sec2), var(--teal-mid)); }
