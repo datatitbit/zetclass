@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Guide 3 — App Admin: Owner Control Room</title><link rel="stylesheet" href="../guide.css"></head>
+<body>
+<div class="top"><div class="in"><div class="brand">Zetclass User Guide · 3 · Owner only</div><h1>App Admin: the owner control room</h1><p>For the Zetclass owner. See every school, manage trials and payments, and check ownership.</p></div></div>
+<div class="page">
+<p class="meta"><span><b>Who:</b> the Zetclass owner (Zetranova) only</span><span><b>Last updated:</b> 5 Nov 2026</span><span><b>App version:</b> 20261118</span><span><a href="../00 Start Here.html">← All guides</a></span></p>
+
+<div class="box warn"><span class="label">Keep this private</span>The control room can see and change every school. Never share the login, and never leave it signed in on a shared computer. Schools never see this screen.</div>
+
+<a class="card-link special" href="03b SPECIAL - Where School Data Is Saved.html"><b>Special section: where school data is saved →</b><span>Where every school's information lives, how it is kept separate, and how to back it up. Filed with this guide.</span></a>
+
+<div class="toc"><b>In this guide</b><ul>
+<li>Part 1 · Sign in to the control room</li>
+<li>Part 2 · Tour of the Schools screen</li>
+<li>Part 3 · Check a school's ownership (do this before taking payment)</li>
+<li>Part 4 · Record a payment and manage the free trial</li>
+<li>Part 5 · Help a school: passwords, edits, log in as the school</li>
+<li>Part 6 · Add a school by hand · suspend · reset · delete</li>
+<li>Part 7 · The activity log</li>
+</ul></div>
+
+<div class="box glossary"><span class="label">Words to know</span>
+<dl>
+<dt>Control room</dt><dd>The owner's private screen at <code>zetclass.com/admin</code>. Also called the platform dashboard.</dd>
+<dt>Platform account</dt><dd>The owner's login. It is separate from every school's logins.</dd>
+<dt>School (tenant)</dt><dd>One customer school. Each has its own private space.</dd>
+<dt>Manage</dt><dd>The button that opens everything about one school.</dd>
+<dt>Free trial</dt><dd>30 days from signup, free. You can extend it.</dd>
+<dt>Paid until</dt><dd>The date a paid subscription runs to. After it, the school is read-only.</dd>
+<dt>Verified</dt><dd>Your mark that a school's ownership has been checked.</dd>
+<dt>Temporary password</dt><dd>A one-time password you give a school. They must change it at first sign-in.</dd>
+<dt>Log in as this school</dt><dd>Opens that school's account as its Admin, for support. It is time-limited and recorded.</dd>
+<dt>Suspend</dt><dd>Pause a school: it becomes view-only. Reversible.</dd>
+<dt>Reset / Delete</dt><dd>Reset wipes a school's records but keeps its account. Delete removes the school completely. Delete cannot be undone.</dd>
+<dt>Activity log</dt><dd>A permanent record of everything done in the control room.</dd>
+</dl></div>
+
+<h2>Part 1 · Sign in to the control room</h2>
+<ol class="steps">
+<li>Go to <code>zetclass.com/admin</code>. [Type exactly <b>admin</b>: there is no <code>.com/admi</code>.]</li>
+<li>In <b>Platform username</b>, type the owner username.</li>
+<li>In <b>Password</b>, type the owner password. Tap <span class="btn gold">Sign in</span>.</li>
+</ol>
+<div class="box check"><span class="label">Check</span>You see <b>Zetranova Platform</b> at the top and a <b>Schools</b> page with count tiles.</div>
+<div class="box tip"><span class="label">Where the login is kept</span>The owner username and password are not stored in the app's records. They are kept (as a scrambled value) in a private settings file on the hosting server. To change them, ask your developer or assistant: do not post them in chats.</div>
+<p><b>To sign out:</b> tap your name <span class="btn ghost">[Platform ▾]</span> at the top right and choose <b>Log out</b>.</p>
+
+<h2>Part 2 · Tour of the Schools screen</h2>
+<ul>
+<li><b>Tiles</b> at the top count your schools: <i>Schools, On free trial, Paid, Ending ≤ 7 days, Ended, Suspended</i>. Tap a tile to filter the list.</li>
+<li><b>Search box</b> finds a school by name, email, phone or web address. The menu next to it filters the same way as the tiles (plus <i>New this week</i>).</li>
+<li><b>Table</b> columns: School, Contact, Subscription, Plan, and a <b>Manage</b> button.</li>
+<li><b>Tags</b> under a school's name: <span class="btn gold" style="font-size:.8em">New</span> (joined this week), <b>Verified</b> (ownership checked), <b>Check licence</b> (the school gave a licence number, waiting for you), <b>Not verified</b> (no number yet).</li>
+<li><b>Password help requests</b> card (appears when needed): Admins who pressed "Forgot password". See Part 5.</li>
+<li><span class="btn ghost">Activity log</span> and <span class="btn gold">+ Add school</span> buttons at the top right.</li>
+</ul>
+
+<h2>Part 3 · Check a school's ownership (before taking payment)</h2>
+<ol class="steps">
+<li>Tap <span class="btn">Manage</span> next to the school. The first section is <b>Ownership check</b>.</li>
+<li>Read the <b>Licence / registration number given by the school</b>.</li>
+<li>Look it up with the issuing body, e.g. <b>NaSIA</b> for private schools or <b>GES</b> for public ones.</li>
+<li>Call or WhatsApp the school's phone number on file (shown under <b>Contact &amp; notes</b>). Confirm the person really is the owner or an authorised representative.</li>
+<li>In the box, write how you checked, e.g. <code>NaSIA no. confirmed; called owner 5 Nov</code>.</li>
+<li>Tap <span class="btn gold">Mark as Verified</span>.</li>
+</ol>
+<div class="box check"><span class="label">Check</span>The section shows a green <b>Verified</b> with the date and your note. The school's own Subscription page now shows <b>Verified ✓</b>. To undo, tap <b>Remove Verified mark</b> and give a reason (recorded in the activity log).</div>
+<div class="box warn"><span class="label">Why this matters</span>Anyone can type a school name into the sign-up form. Verification stops an impostor from running a school's account or paying in its name. While a school is not Verified, the <b>Subscription</b> section shows a warning above <b>Record a payment</b>.</div>
+
+<h2>Part 4 · Record a payment and manage the free trial</h2>
+<h3>When a school has paid</h3>
+<ol class="steps">
+<li>The school sends its MoMo <b>transaction ID</b> on WhatsApp. Confirm the money arrived in your MoMo account.</li>
+<li>Tap <span class="btn">Manage</span> next to the school → <b>Subscription</b> section.</li>
+<li>Under <b>Record a payment</b>, choose the <b>Plan</b> (Basic, Growth or Premium) and the period: <b>1 term</b>, <b>2 terms</b>, <b>Full year</b>, or <b>Pick an end date…</b>.</li>
+<li>Optional: type the <b>amount</b> and a <b>note</b> such as the MoMo reference.</li>
+<li>Read the line that says "School will be paid until …". Tap <span class="btn">Record payment</span>.</li>
+</ol>
+<div class="box check"><span class="label">Check</span>A message says "Payment recorded". The school shows <b>Paid</b> with its new date. Renewals add to any time already paid.</div>
+
+<h3>Extend a free trial</h3>
+<p>In the same <b>Subscription</b> section, under <b>Free trial</b>, tap <b>+ 1 month</b>, <b>+ 2 weeks</b> or <b>+ 3 months</b>; or type a number of days and tap <b>Add days</b>; or choose an exact date and tap <b>Set date</b>.</p>
+<div class="box warn"><span class="label">Careful</span>Extending a trial on a school that has already paid replaces its paid date. The screen asks you to confirm first.</div>
+
+<h2>Part 5 · Help a school</h2>
+<h3>A school Admin forgot their password</h3>
+<ol class="steps">
+<li>Look at <b>Password help requests</b> on the Schools page. It lists Admins who pressed "Forgot password" and whether their email was sent.</li>
+<li>Confirm it really is the school: tap <b>WhatsApp them</b> or call the number on file.</li>
+<li>Tap <span class="btn gold">Issue temporary password</span> and confirm. A box shows the one-time password and a ready-made WhatsApp message.</li>
+<li>Send it to the school. They sign in and choose their own password. Tap <b>Dismiss</b> on the request when done.</li>
+</ol>
+<div class="box tip"><span class="label">Other accounts</span>Teaching and non-teaching staff and parents ask <b>their own school Admin</b> to reset passwords. You only need to help Admins. In <b>Manage → Login accounts</b> you can also reset a password or disable an account for any user.</div>
+
+<h3>Correct a school's details</h3>
+<p><b>Manage → Contact &amp; notes → Edit school details…</b> lets you change the name, contact person, email, phone, WhatsApp, website, country, region, district, locality and postal address. The web address (e.g. <code>zetclass.com/st-marys</code>) cannot change. Use <b>Private notes</b> for your own reminders (schools never see them) and tap <b>Save note</b>.</p>
+
+<h3>See what a school sees</h3>
+<p><b>Manage → Support tools → Log in as this school</b> opens the school as its Admin, for a limited time. The screen shows a banner while you are in. This is recorded in the activity log. <b>Activity for this school</b> shows its history.</p>
+
+<h2>Part 6 · Add a school by hand · suspend · reset · delete</h2>
+<h3>Add a school by hand</h3>
+<ol class="steps">
+<li>Tap <span class="btn gold">+ Add school</span> [top right].</li>
+<li>Fill in <b>School name</b>, <b>Contact person</b> (becomes the first Admin), <b>Email</b>, <b>Phone / WhatsApp</b> and, if you want, a <b>Web address</b>.</li>
+<li>Leave the sample-demo box unticked for a real school. Tap <span class="btn gold">Create</span>.</li>
+<li>A box shows the school's <b>temporary password</b> and a WhatsApp message to send. Hand it over: the school must change it at first sign-in.</li>
+</ol>
+
+<h3>Suspend, reset, delete</h3>
+<ul>
+<li><b>Suspend school / Reactivate school</b> (Manage → Support tools): pauses or restores a school. Suspended schools are view-only.</li>
+<li><b>Reset school data…</b> (Danger zone): wipes every pupil, staff member, payment and record, keeps the account and subscription, and gives a new temporary password.</li>
+<li><b>Delete school permanently…</b> (Danger zone): removes the school and all its data. Use it for <b>test signups</b>, or when a school asks for its information to be erased.</li>
+</ul>
+<div class="box warn"><span class="label">Cannot be undone</span>Reset and Delete cannot be reversed. The screen asks you to confirm by typing. Export the school's data first if there is any chance it is needed (the school Admin can do this from Settings → Data).</div>
+
+<h2>Part 7 · The activity log</h2>
+<ol class="steps">
+<li>Tap <span class="btn ghost">Activity log</span> [top right of the Schools page] for everything, or <b>Activity for this school</b> inside Manage for one school.</li>
+<li>Each line shows the time, what happened (e.g. <i>School signed up, Recorded payment, Marked school as Verified, Issued temporary password</i>) and the details.</li>
+</ol>
+<p>Entries cannot be edited or deleted from the app. For signups, the log also shows that the person confirmed they are the owner or authorised representative, and from which internet address.</p>
+
+<h2>Tips</h2>
+<ul>
+<li>Check ownership <b>before</b> you record a payment.</li>
+<li>Delete your own test schools after you try the signup.</li>
+<li>If a school says it never got the reset email, check Spam, then use the temporary password route.</li>
+</ul>
+
+<h2>Update log</h2>
+<div class="wrap"><table>
+<tr><th>Date</th><th>App version</th><th>What changed</th></tr>
+<tr><td>5 Nov 2026</td><td>20261118</td><td>First edition. Control room tour, ownership check (Verified), payments, trials, password help, activity log.</td></tr>
+</table></div>
+<footer>Zetranova Limited · Zetclass User Guide 3 (owner only)</footer>
+</div></body></html>
