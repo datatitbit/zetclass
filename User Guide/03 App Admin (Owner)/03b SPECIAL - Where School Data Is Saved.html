@@ -4,29 +4,17 @@
 <body>
 <div class="top"><div class="in"><div class="brand">Zetclass User Guide · 3b · Special section · Owner only</div><h1>Where school data is saved</h1><p>What is stored, where it lives, how schools are kept apart, and how to back it up.</p></div></div>
 <div class="page">
-<p class="meta"><span><b>Who:</b> the Zetclass owner (Zetranova) only</span><span><b>Last updated:</b> 5 Nov 2026</span><span><b>App version:</b> 20261118</span><span><a href="03 App Admin - Owner Control Room.html">← App Admin guide</a></span><span><a href="../00 Start Here.html">All guides</a></span></p>
-
-<div class="box glossary special"><span class="label">Words to know</span>
-<dl>
-<dt>Database</dt><dd>An organised digital filing cabinet on a server. Zetclass uses one called MySQL.</dd>
-<dt>Server / hosting</dt><dd>A computer that is always on and connected to the internet. Yours is rented from Namecheap.</dd>
-<dt>cPanel</dt><dd>The hosting control panel where you manage files, databases and email.</dd>
-<dt>API</dt><dd>The "receptionist": the part of Zetclass that fetches and saves records for the app.</dd>
-<dt>School id</dt><dd>The short name that labels one school's records, e.g. <code>st-marys-basic-school</code>. Also the end of its portal address.</dd>
-<dt>Table</dt><dd>One drawer in the filing cabinet, e.g. the list of schools.</dd>
-<dt>Hash</dt><dd>A password scrambled one way, so it can be checked but never read back.</dd>
-<dt>Token</dt><dd>A signed pass the browser carries after sign-in. It names the person, their school and their user type.</dd>
-<dt>Backup</dt><dd>A copy kept somewhere else, so you can recover from a mistake or failure.</dd>
-<dt>Data processor / controller</dt><dd>Under Ghana's Data Protection Act: the processor handles data for someone else (Zetranova for a school's pupil records); the controller decides why and how (Zetranova for sign-up and billing details).</dd>
-</dl></div>
+<p class="meta"><span><b>Who:</b> the Zetclass owner (Zetranova) only</span><span><b>Last updated:</b> 5 Nov 2026</span><span><b>App version:</b> 20261125</span><span><a href="03 App Admin - Owner Control Room.html">← App Admin guide</a></span><span><a href="../00 Start Here.html">All guides</a></span></p>
 
 <h2>The short answer</h2>
+<div class="box glossary sec"><span class="label">Words in this section</span><dl><dt>Database</dt><dd>A big organised filing cabinet on the internet. Zetclass uses one called MySQL.</dd><dt>Server</dt><dd>A computer that is always on. Yours is rented from Namecheap.</dd><dt>School id</dt><dd>The short name that labels one school’s records, like st-marys.</dd></dl></div>
 <p>School data is <b>not</b> kept on teachers' phones or computers. It is saved in <b>one MySQL database on your web hosting account</b>, and every school's records carry that school's id so they stay apart. Your phone or computer only holds a sign-in pass and the app's own files.</p>
 
 <h3>A simple picture</h3>
 <p>Imagine one large filing room. Every school has its own locked drawer, labelled with its school id. When someone signs in, the receptionist (the API) hands them a pass that names <i>one</i> drawer. From then on, the receptionist only ever opens that drawer for them. Nobody can ask for another school's drawer, even by trying.</p>
 
 <h2>Where exactly</h2>
+<div class="box glossary sec"><span class="label">Words in this section</span><dl><dt>cPanel</dt><dd>The control panel of your hosting, where you manage files and databases.</dd><dt>Config file</dt><dd>A private file with secret settings. It is never put on GitHub.</dd><dt>GitHub</dt><dd>Where the program code is kept. No school data is there.</dd><dt>IndexedDB</dt><dd>Private storage inside a browser. Used for the offline copy.</dd></dl></div>
 <div class="wrap"><table>
 <tr><th>What</th><th>Where it lives</th></tr>
 <tr><td>All school records</td><td>The MySQL database on your <b>Namecheap hosting</b>, in the cPanel account that holds <code>zetranova.com</code> (server190). Zetclass shares that account with your other sites.</td></tr>
@@ -38,6 +26,7 @@
 <div class="box unsure"><span class="label">Not confirmed</span>Which country your hosting server physically sits in is not shown in cPanel. To see it: sign in to Namecheap → <b>Hosting List</b> → <b>Manage</b> next to your plan, and look for the <b>data center</b> location. Write it here once known, because schools and the Data Protection Commission may ask.</div>
 
 <h2>What is inside the database</h2>
+<div class="box glossary sec"><span class="label">Words in this section</span><dl><dt>Table</dt><dd>One drawer of the filing cabinet, for example the list of schools.</dd><dt>Record</dt><dd>One item in a drawer, like one pupil.</dd></dl></div>
 <div class="wrap"><table>
 <tr><th>Table (drawer)</th><th>What it holds</th></tr>
 <tr><td><b>schools</b></td><td>One row per school: name, portal address, plan, trial and paid dates, status, contact details, country/region/district/locality, licence number and Verified mark, your private notes.</td></tr>
@@ -51,6 +40,7 @@
 </table></div>
 
 <h2>How schools are kept apart</h2>
+<div class="box glossary sec"><span class="label">Words in this section</span><dl><dt>Token</dt><dd>A signed pass the browser carries after sign-in. It names one school.</dd><dt>API</dt><dd>The helper that fetches and saves records. It only opens the school named on your pass.</dd></dl></div>
 <ul>
 <li>Every record carries its <b>school id</b>, and every request is filtered by the school id inside the sign-in pass, <b>never</b> by anything the browser sends.</li>
 <li>The pass is <b>signed</b> with a secret only the server knows, and expires after about 12 hours.</li>
@@ -59,6 +49,7 @@
 </ul>
 
 <h2>How passwords are stored</h2>
+<div class="box glossary sec"><span class="label">Words in this section</span><dl><dt>Hash</dt><dd>A password scrambled one way. It can be checked but never read back.</dd><dt>Temporary password</dt><dd>A one-time password shown once on screen. Zetclass keeps no readable copy.</dd></dl></div>
 <ul>
 <li>Passwords are stored only as <b>hashes</b> (PBKDF2, 100,000 rounds, with a random salt). Nobody, including you, can read them back.</li>
 <li>Temporary passwords are shown <b>once</b> on screen. Zetclass does not keep a readable copy.</li>
@@ -66,6 +57,7 @@
 </ul>
 
 <h2>Who can see school data</h2>
+<div class="box glossary sec"><span class="label">Words in this section</span><dl><dt>phpMyAdmin</dt><dd>A tool in cPanel that shows the whole database. Protect your hosting sign-in.</dd></dl></div>
 <div class="wrap"><table>
 <tr><th>Who</th><th>What they can reach</th></tr>
 <tr><td>A school's users</td><td>Only their own school, and only what their user type allows.</td></tr>
@@ -74,6 +66,7 @@
 </table></div>
 
 <h2>Backups: what you have, and what to do</h2>
+<div class="box glossary sec"><span class="label">Words in this section</span><dl><dt>Backup</dt><dd>A copy kept somewhere else, so you can recover from a mistake or failure.</dd><dt>Off-server</dt><dd>Kept outside the hosting account, for example on your computer.</dd><dt>OneDrive</dt><dd>Your online folder on your computer. A safe place for backups.</dd><dt>Full account backup</dt><dd>A copy of everything in the hosting account, including the private settings file.</dd></dl></div>
 <div class="box check"><span class="label">What we found (checked in your cPanel, 5 Nov 2026)</span>
 <ul>
 <li>Namecheap does <b>not</b> show you any automatic backups. The Backup page says none are available unless the server owner turns them on, and there is no JetBackup tool.</li>
@@ -112,6 +105,7 @@
 </ul>
 
 <h2>What happens when a school is deleted or reset</h2>
+<div class="box glossary sec"><span class="label">Words in this section</span><dl><dt>Delete</dt><dd>Removes the school and all its records for good.</dd><dt>Reset</dt><dd>Removes the records but keeps the school’s account and subscription.</dd></dl></div>
 <ul>
 <li><b>Delete school permanently</b> removes the school's row, all its records (<i>documents</i>), its settings (<i>singletons</i>), its counters and its reset links. The activity log keeps a line that the school was deleted (its name and when), not its pupil records.</li>
 <li><b>Reset school data</b> removes records, settings and counters but keeps the school's row (subscription, contact details).</li>
@@ -119,9 +113,11 @@
 </ul>
 
 <h2>Looking ahead</h2>
+<div class="box glossary sec"><span class="label">Words in this section</span><dl><dt>PostgreSQL</dt><dd>A bigger kind of database for later, when Zetclass grows.</dd><dt>Dedicated server</dt><dd>A server used only by Zetclass, not shared with other websites.</dd></dl></div>
 <p>The plan is to keep the MySQL database on shared hosting for now. As Zetclass grows, the data can move to a larger database (e.g. PostgreSQL) on a dedicated server. When that happens, this page will be updated and the update log below will say so.</p>
 
 <h2>Checklist for the owner</h2>
+<div class="box glossary sec"><span class="label">Words in this section</span><dl><dt>Two-step sign-in</dt><dd>A second code, sent to your phone, needed to sign in. It stops strangers.</dd><dt>Data Protection Commission</dt><dd>The Ghana office that registers organisations holding people’s information.</dd></dl></div>
 <ul>
 <li>☐ Keep the cPanel and control-room passwords private; turn on two-step sign-in for hosting.</li>
 <li>☐ Download the database backup every week and keep it in OneDrive (and optionally Google Drive).</li>

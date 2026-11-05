@@ -44,5 +44,24 @@ th { background: var(--teal-light); color: var(--teal-dark); }
 .card-link span { color: var(--muted); font-size: .92rem; }
 .special { border-left: 5px solid var(--gold); }
 footer { margin-top: 2.5rem; font-size: .85rem; color: var(--muted); }
-@media print { body { background: #fff; } .top { background: #fff; color: #000; border-bottom: 2px solid var(--teal); } .top h1, .top p, .top .brand { color: #000; } .card-link { border: 1px solid #999; } }
+@page { size: A4; margin: 15mm 13mm 17mm; @bottom-center { content: "Zetclass User Guide  ·  Page " counter(page); font: 9pt "Segoe UI", Arial, sans-serif; color: #5f6f6e; } }
+@media print {
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { background: #fff; font-size: 11pt; line-height: 1.5; }
+  .top { border-radius: 10px; padding: 1.1rem 1.2rem; margin-bottom: .4rem; }
+  .page { max-width: none; padding: .4rem 0 0; }
+  a { color: inherit; text-decoration: none; }
+  h2 { break-after: avoid; page-break-after: avoid; margin-top: 1.5rem; }
+  h3 { break-after: avoid; page-break-after: avoid; }
+  .box, ol.steps > li, tr, .toc, .card-link { break-inside: avoid; page-break-inside: avoid; }
+  .box.glossary { break-after: avoid; page-break-after: avoid; }
+  .wrap { overflow: visible; }
+  .meta a { display: none; }
+  .card-link { border: 1px solid #b9cbc8; }
+}
 @media (max-width: 560px) { .glossary dl { grid-template-columns: 1fr; } .glossary dd { margin-bottom: .3rem; } }
+
+.box.glossary.sec { padding: .6rem .9rem; margin: .5rem 0 1rem; }
+.box.glossary.sec .label { margin-bottom: .15rem; }
+.box.glossary.sec dl { gap: .15rem 1rem; font-size: .93rem; }
+ol.steps > li, ol.steps ul { max-width: none; }
