@@ -1,0 +1,118 @@
+/* ============================================================
+ * auth.css — sign-in, register, forgot / reset password.
+ * Loaded after app.css, so these rules override the older centred-card look.
+ *
+ * Desktop: a brand panel on the left, the form on the right.
+ * Phone:   a slim brand bar on top, then the form.
+ * ============================================================ */
+.login-wrap {
+  flex-direction: column; padding: 0; overflow-y: auto;
+  background: #f2f6f5;
+}
+
+/* ---- Brand panel / bar ---- */
+.auth-brand {
+  flex: none; display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  padding: .85rem 1.1rem; color: #fff;
+  background: linear-gradient(100deg, var(--teal-deep), var(--teal-dark) 60%, var(--teal));
+}
+.auth-wordmark { font-size: 1.25rem; font-weight: 800; letter-spacing: -.02em; color: #fff; text-decoration: none; display: inline-flex; align-items: baseline; gap: .2rem; }
+.auth-wordmark::after { content: ""; width: .42rem; height: .42rem; border-radius: 50%; background: var(--gold); display: inline-block; }
+.auth-brand .brand-body, .auth-brand .brand-foot { display: none; }
+.auth-brand .brand-mobile-link { color: rgba(255,255,255,.88); font-size: .85rem; font-weight: 600; text-decoration: none; }
+
+/* ---- The form card ---- */
+.login-wrap > .card {
+  margin: 1.4rem auto; width: calc(100% - 2rem); max-width: 460px; padding: 1.7rem 1.4rem 1.4rem;
+  border: 1px solid #dfe8e6; border-radius: 18px;
+  box-shadow: 0 1px 2px rgba(10,50,50,.05), 0 12px 32px rgba(10,50,50,.08);
+  overflow: visible; background: #fff;
+}
+.login-wrap > .card::before { display: none; }
+.login-wrap > .card.wide { max-width: 640px; }
+.login-wrap .card h1 { font-size: 1.7rem; letter-spacing: -.02em; margin-bottom: .2rem; }
+.login-wrap .card h2 { font-size: 1.02rem; font-weight: 600; margin: 0 0 .3rem; color: var(--teal); }
+
+@media (min-width: 960px) {
+  .login-wrap { flex-direction: row; align-items: stretch; }
+  .auth-brand {
+    flex: 0 0 40%; max-width: 560px; flex-direction: column; align-items: flex-start; justify-content: space-between;
+    position: sticky; top: 0; align-self: flex-start; height: 100vh; padding: 2.6rem 3rem;
+    background:
+      radial-gradient(700px 420px at 0% 0%, rgba(224,171,43,.22), transparent 62%),
+      radial-gradient(640px 520px at 110% 110%, rgba(20,128,127,.6), transparent 60%),
+      linear-gradient(160deg, var(--teal-deep), var(--teal-dark) 60%, var(--teal));
+  }
+  .auth-wordmark { font-size: 1.7rem; }
+  .auth-brand .brand-mobile-link { display: none; }
+  .auth-brand .brand-body, .auth-brand .brand-foot { display: block; }
+  .brand-body h2 { color: #fff; font-size: 2rem; line-height: 1.15; letter-spacing: -.025em; margin: 0 0 .8rem; font-weight: 750; text-wrap: balance; }
+  .brand-body > p { color: rgba(255,255,255,.84); font-size: 1.02rem; margin: 0 0 1.6rem; max-width: 32ch; }
+  .brand-points { list-style: none; margin: 0; padding: 0; display: grid; gap: .85rem; }
+  .brand-points li { display: flex; gap: .7rem; align-items: flex-start; color: #fff; font-size: .98rem; line-height: 1.35; }
+  .brand-points svg { flex: none; width: 1.35rem; height: 1.35rem; margin-top: .05rem; color: var(--gold); }
+  .brand-foot { color: rgba(255,255,255,.66); font-size: .82rem; }
+  .brand-foot a { color: rgba(255,255,255,.85); }
+  .login-wrap > .card { margin: auto; width: 100%; max-width: 480px; padding: 2.1rem 2rem 1.7rem; align-self: center; }
+  .login-wrap > .card.wide { max-width: 660px; }
+  .login-wrap { padding-right: 1.5rem; }
+  .login-wrap > .auth-brand { margin-right: 1.5rem; }
+}
+
+/* ---- Inputs: roomier and easier to tap (16px stops phones zooming in on focus) ---- */
+.login-wrap .form input:not([type=checkbox]),
+.login-wrap .form select,
+.login-wrap .form textarea { min-height: 46px; font-size: 1rem; padding: .62rem .8rem; border: 1px solid #c9d6d3; border-radius: 10px; }
+.login-wrap .form textarea { min-height: 72px; resize: vertical; font-family: inherit; }
+.login-wrap .form input:hover:not(:focus), .login-wrap .form select:hover:not(:focus) { border-color: #9fb5b1; }
+.login-wrap .form label { font-size: .86rem; color: var(--ink); margin-bottom: .32rem; }
+.login-wrap .form .field { margin-bottom: .95rem; }
+.login-wrap .form .help { font-size: .78rem; color: var(--muted); margin-top: .3rem; line-height: 1.4; }
+.login-wrap .form .field-req { font-size: .72rem !important; margin-top: .22rem !important; }
+.login-form .btn { min-height: 48px; font-size: 1rem; border-radius: 12px; }
+.login-form .btn:disabled { opacity: .75; cursor: progress; transform: none; }
+.login-form .btn:disabled::before { content: ""; display: inline-block; width: .9em; height: .9em; margin-right: .55em; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: zspin .7s linear infinite; vertical-align: -.12em; }
+@keyframes zspin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .login-form .btn:disabled::before { animation-duration: 2s; } }
+.phone-prefix { min-height: 46px; font-size: 1rem; }
+
+/* ---- Register: related fields grouped under small headings; paired fields sit side by side ---- */
+.auth-sec { display: flex; align-items: center; gap: .7rem; margin: 1.3rem 0 .7rem; font-size: .72rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--teal); }
+.auth-sec::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.auth-grid { display: grid; grid-template-columns: 1fr; gap: 0 1rem; }
+@media (min-width: 600px) { .auth-grid.two { grid-template-columns: 1fr 1fr; } }
+.auth-grid .span2 { grid-column: 1 / -1; }
+
+/* Password strength: four segments that fill and change colour. Advice only — it never blocks signup. */
+.pw-meter { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: .55rem; }
+.pw-meter i { height: 4px; border-radius: 4px; background: #e1e8e6; transition: background .2s; }
+.pw-meter[data-level="weak"] i:nth-child(-n+1) { background: #c0402f; }
+.pw-meter[data-level="ok"] i:nth-child(-n+3) { background: #d99a1d; }
+.pw-meter[data-level="strong"] i { background: #1f7a4d; }
+
+/* Confirmation boxes: each tick box is a tappable card, so the whole row is the target. */
+.check-card { display: flex; gap: .7rem; align-items: flex-start; padding: .8rem .9rem; border: 1px solid #d5e0de; border-radius: 12px; background: #fbfdfc; cursor: pointer; transition: border-color .15s, background .15s; text-align: left; justify-content: flex-start; }
+.check-card:hover { border-color: var(--teal); background: var(--teal-light); }
+.check-card input[type=checkbox] { flex: none; width: 1.2rem !important; height: 1.2rem; margin: .15rem 0 0 !important; accent-color: var(--teal); }
+.check-card > span { font-size: .9rem; font-weight: 600; color: var(--ink); line-height: 1.4; }
+.login-wrap .form label.check-card { display: flex; margin-bottom: 0; font-size: .9rem; }
+.notice-warn { display: flex; gap: .6rem; background: #fff8e6; border: 1px solid #ecd28a; border-radius: 10px; padding: .6rem .75rem; margin: .5rem 0 .2rem; font-size: .8rem; color: #5e4a0c; line-height: 1.4; }
+.notice-warn svg { flex: none; width: 1.1rem; height: 1.1rem; margin-top: .1rem; color: #b8860b; }
+.secure-line { display: flex; gap: .45rem; align-items: center; justify-content: center; margin-top: .8rem; font-size: .78rem; color: var(--muted); }
+.secure-line svg { width: .95rem; height: .95rem; color: var(--teal); }
+details.optional-details { border: 1px dashed #bfcfcb; border-radius: 12px; padding: .7rem .9rem; background: #fafcfb; }
+details.optional-details[open] { border-style: solid; background: #fff; }
+details.optional-details summary { list-style: none; display: flex; align-items: center; gap: .5rem; }
+details.optional-details summary::-webkit-details-marker { display: none; }
+details.optional-details summary::before { content: "+"; display: inline-grid; place-items: center; width: 1.4rem; height: 1.4rem; border-radius: 50%; background: var(--teal-light); color: var(--teal); font-weight: 800; }
+details.optional-details[open] summary::before { content: "\2013"; }
+.login-wrap .welcome-box { border-radius: 14px; }
+
+/* Short windows: keep the brand panel from overflowing. */
+@media (min-width: 960px) and (max-height: 720px) {
+  .brand-body > p, .brand-points { display: none; }
+  .brand-body h2 { font-size: 1.7rem; }
+}
+
+/* The school badge sits left, in line with the heading. */
+.login-wrap .login-badge { margin: 0 0 1rem; width: 52px; height: 52px; font-size: 1.5rem; }

@@ -442,7 +442,7 @@
       form.appendChild(U.el('div', { class: 'help', style: 'margin-top:.8rem;text-align:center;font-size:.75rem', text: 'This school starts with sample demo data for testing. An Admin can clear or restore it anytime in Settings → Sample Data.' }));
 
       card.appendChild(form);
-      wrap.appendChild(card);
+      wrap.appendChild(brandPanel('Free trial','/signup')); wrap.appendChild(card);
       root.appendChild(wrap);
       roleSelect.focus();
     });
@@ -796,7 +796,14 @@
     schoolField.appendChild(U.el('div', { class: 'help', text: 'The last part of your school’s web address, e.g. st-marys-school' }));
     form.appendChild(schoolField);
     form.appendChild(field('Username', userInput));
-    form.appendChild(field('Password', passInput));
+    // Show/Hide on the password, so people on a phone can check what they typed.
+    var showBtn = U.el('button', { type: 'button', class: 'pw-toggle', text: 'Show', 'aria-label': 'Show password', onclick: function () {
+      var show = passInput.type === 'password';
+      passInput.type = show ? 'text' : 'password';
+      showBtn.textContent = show ? 'Hide' : 'Show';
+      showBtn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+    } });
+    form.appendChild(U.el('div', { class: 'field' }, [U.el('label', { text: 'Password' }), U.el('div', { class: 'pw-wrap' }, [passInput, showBtn])]));
     form.appendChild(U.el('div', { style: 'text-align:right;margin:-.4rem 0 .6rem' }, [
       U.el('a', { href: '/forgot-password' + (App.schoolIdHint ? '?school=' + encodeURIComponent(App.schoolIdHint) : ''), class: 'forgot-link', text: 'Forgot password?' })
     ]));
@@ -812,7 +819,7 @@
     var support = supportLine();
     card.appendChild(U.el('p', { class: 'help login-alt', text: 'Teachers, staff and parents who forgot their password: ask your school’s administrator to reset it' + (support ? '. Need help? ' + support : '.') }));
     card.appendChild(U.el('p', { class: 'help login-alt' }, [U.el('a', { href: '/terms.html', text: 'Terms of Service' }), document.createTextNode(' · '), U.el('a', { href: '/privacy.html', text: 'Privacy Notice' })]));
-    wrap.appendChild(card);
+    wrap.appendChild(brandPanel('Free trial','/signup')); wrap.appendChild(card);
     root.appendChild(wrap);
     // Land on the first EMPTY box so a returning visitor can just start typing.
     (schoolInput.value ? userInput : schoolInput).focus();
@@ -837,6 +844,38 @@
     return bits.join(' · ');
   }
   App.supportLine = supportLine;
+
+  // Small inline icons (no image files to download).
+  var ICON = {
+    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M8 12.5l2.7 2.7L16 9.5"/></svg>',
+    warn:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>',
+    lock:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>'
+  };
+  function icon(name, tag, cls) { var n = U.el(tag || 'span', cls ? { class: cls } : {}); n.innerHTML = ICON[name]; return n; }
+
+  // The left-hand brand panel on desktop, a slim brand bar on phones. Shared by every sign-in /
+  // register / password screen so they all feel like one product. (linkText/linkHref: the small
+  // link in the phone bar, e.g. "Sign in".)
+  function brandPanel(linkText, linkHref) {
+    var trialDays = (global.License && global.License.TRIAL_DAYS) || 30;
+    var panel = U.el('aside', { class: 'auth-brand' });
+    panel.appendChild(U.el('div', { class: 'brand-top' }, [U.el('a', { class: 'auth-wordmark', href: '/', text: 'Zetclass' })]));
+    if (linkText) panel.appendChild(U.el('a', { class: 'brand-mobile-link', href: linkHref, text: linkText }));
+    var points = U.el('ul', { class: 'brand-points' });
+    [trialDays + '-day free trial. No card or payment details needed.',
+     'Every school’s records are private and kept separate.',
+     'Ready in about two minutes. Sample data helps you explore.'].forEach(function (t) {
+      var li = U.el('li'); li.appendChild(icon('check')); li.appendChild(U.el('span', { text: t })); points.appendChild(li);
+    });
+    panel.appendChild(U.el('div', { class: 'brand-body' }, [
+      U.el('h2', { text: 'Run your whole school from one place.' }),
+      U.el('p', { text: 'Pupils, attendance, report cards, fees, stock and accounts — on any phone or computer.' }),
+      points
+    ]));
+    panel.appendChild(U.el('div', { class: 'brand-foot' }, [document.createTextNode('© Zetranova Limited, Ghana · '),
+      U.el('a', { href: '/terms.html', text: 'Terms' }), document.createTextNode(' · '), U.el('a', { href: '/privacy.html', text: 'Privacy' })]));
+    return panel;
+  }
 
   // Mirror of the server's rules (valid_* functions in api/index.php).
   function signupChecks(v) {
@@ -893,21 +932,21 @@
     if (score === 3) return { level: 'ok', text: 'Fair. Add a symbol (like ! or #) or a few more characters to make it strong.' };
     return { level: 'strong', text: 'Strong password.' };
   }
-  function bindPasswordTip(input, el) {
+  function bindPasswordTip(input, el, meter) {
     var colours = { none: '', weak: '#b3261e', ok: '#8a6410', strong: '#1b6b3a' };
-    function paint() { var t = passwordTip(input.value); el.textContent = t.text; el.style.color = colours[t.level]; el.style.fontWeight = t.level === 'none' ? '' : '600'; }
+    function paint() { var t = passwordTip(input.value); el.textContent = t.text; el.style.color = colours[t.level]; el.style.fontWeight = t.level === 'none' ? '' : '600'; if (meter) meter.setAttribute('data-level', t.level); }
     input.addEventListener('input', paint); paint();
   }
 
   function chooseSignup() {
     var root = U.clear(U.$('#root'));
     var wrap = U.el('div', { class: 'login-wrap' });
-    var card = U.el('div', { class: 'card' });
+    var card = U.el('div', { class: 'card wide' });
     var trialDays = (global.License && global.License.TRIAL_DAYS) || 30;
-    card.appendChild(U.el('h1', { text: 'Register', style: 'margin-top:.2rem' }));
-    card.appendChild(U.el('h2', { text: 'Start your free trial', style: 'font-size:1.1rem;margin:.1rem 0 .3rem;color:var(--teal-dark,#0f5e5e)' }));
+    card.appendChild(U.el('h1', { text: 'Register' }));
+    card.appendChild(U.el('h2', { text: 'Start your free trial' }));
     card.appendChild(U.el('p', { class: 'muted', text: 'Set up your school in about 2 minutes. Free for ' + trialDays + ' days — no payment details needed.' }));
-    card.appendChild(U.el('p', { class: 'help', style: 'margin-top:-.4rem' }, [U.el('span', { text: '*', style: 'color:#c0261b;font-weight:700' }), document.createTextNode(' marks a required field. Everything else is optional.')]));
+    card.appendChild(U.el('p', { class: 'help', style: 'margin-top:-.3rem' }, [U.el('span', { text: '*', style: 'color:#c0261b;font-weight:700' }), document.createTextNode(' marks a required field. Everything else is optional.')]));
 
     // The message box sits just ABOVE the Create button (added below), so whatever goes
     // wrong appears exactly where the person just clicked, never off-screen at the top.
@@ -920,6 +959,13 @@
     // `req`: true = required (red * and “Required” underneath), false = “Optional” underneath.
     function reqNote(req) { return U.el('div', { class: 'field-req', text: req ? 'Required' : 'Optional', style: 'font-size:.75rem;margin-top:.15rem;color:' + (req ? '#c0261b' : 'var(--muted,#6b7a78)') }); }
     function reqStar() { return U.el('span', { text: ' *', style: 'color:#c0261b;font-weight:700', 'aria-hidden': 'true' }); }
+    // Fields are grouped under small headings; `grid` is the group being filled (null = straight into the form).
+    var grid = null;
+    function section(title, twoCols) {
+      form.appendChild(U.el('div', { class: 'auth-sec', text: title }));
+      grid = U.el('div', { class: 'auth-grid' + (twoCols ? ' two' : '') });
+      form.appendChild(grid);
+    }
     function addField(key, label, input, help, control, req) {
       input.id = 'f-' + key; input.name = key;
       var err = U.el('div', { class: 'field-error', id: 'err-' + key, 'aria-live': 'polite' });
@@ -930,7 +976,9 @@
       var kids = [lab, control || input, err];
       if (req !== undefined) kids.push(reqNote(req));
       if (help) kids.push(U.el('div', { class: 'help', text: help }));
-      form.appendChild(U.el('div', { class: 'field' }, kids));
+      var box = U.el('div', { class: 'field' }, kids);
+      (grid || form).appendChild(box);
+      return box;
     }
     function setError(key, msg) {
       errEls[key].textContent = msg || '';
@@ -978,11 +1026,13 @@
     var composedPhone = phoneBox.composed;
     var passIn   = U.el('input', { type: 'password', autocomplete: 'new-password', placeholder: 'Choose a password', maxlength: '128' });
 
+    section('Your school');
     addField('school_name', 'School name', schoolIn, '', null, true);
     addField('country', 'Country', countrySel, 'Choosing your country adds its dialling code to the phone numbers below.', null, true);
-    addField('email', 'School email address', emailIn, 'Your password-reset link is sent here.', null, true);
-    addField('phone', 'School phone number (for calls)', phoneIn, 'The number we can call. Type only the main number, for example 24 123 4567 — the country code is added for you.', phoneBox.box, true);
-    addField('whatsapp', 'WhatsApp number (optional)', waIn, 'A different number from the phone above, if the school uses one for WhatsApp. Leave empty if you have none.', waBox.box, false);
+    section('How we can reach you', true);
+    addField('email', 'School email address', emailIn, 'Your password-reset link is sent here.', null, true).classList.add('span2');
+    addField('phone', 'School phone number (for calls)', phoneIn, 'Type only the main number, e.g. 24 123 4567. The code is added for you.', phoneBox.box, true);
+    addField('whatsapp', 'WhatsApp number (optional)', waIn, 'Only if it differs from the phone. Leave empty if none.', waBox.box, false);
     countrySel.value = 'Ghana';
     countrySel.addEventListener('change', function () {
       phoneBox.refresh(); waBox.refresh(); paintRegion();
@@ -1010,7 +1060,7 @@
     var websiteIn  = U.el('input', { type: 'text', id: 'f-website', name: 'website', maxlength: '200', placeholder: 'e.g. www.myschool.edu.gh', autocomplete: 'url', autocapitalize: 'none', spellcheck: 'false', inputmode: 'url' });
     function optField(label, node) { return U.el('div', { class: 'field' }, [U.el('label', { text: label }), node, reqNote(false)]); }
     var locationDetails = (U.el('details', { class: 'optional-details', style: 'margin:.2rem 0 .8rem' }, [
-      U.el('summary', { text: 'Add more about the school (optional)', style: 'cursor:pointer;font-weight:600;color:var(--teal-dark,#0f5e5e)' }),
+      U.el('summary', { text: 'Add website, region and postal address', style: 'cursor:pointer;font-weight:600;color:var(--teal-dark,#0f5e5e)' }),
       U.el('div', { class: 'help', text: 'Helps us find and serve you, and prints on report cards. You can add or change these later in Settings.', style: 'margin:.4rem 0' }),
       optField('Website', websiteIn), optField('Region', regionHost), optField('District', districtIn), optField('Locality / area', localityIn), optField('Postal address', postalIn)
     ]));
@@ -1022,12 +1072,17 @@
       toggle.textContent = show ? 'Hide' : 'Show';
       toggle.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
     } });
+    section('Secure your account');
     addField('password', 'Create a password', passIn, '',
       U.el('div', { class: 'pw-wrap' }, [passIn, toggle]), true);
     // Live strength tip (advice only: it never blocks the signup).
     var pwHelp = U.el('div', { class: 'help' });
     inputs.password.closest('.field').appendChild(pwHelp);
-    bindPasswordTip(passIn, pwHelp);
+    var pwMeter = U.el('div', { class: 'pw-meter', 'aria-hidden': 'true' }, [U.el('i'), U.el('i'), U.el('i'), U.el('i')]);
+    inputs.password.closest('.field').insertBefore(pwMeter, pwHelp);
+    bindPasswordTip(passIn, pwHelp, pwMeter);
+    grid = null;
+    form.appendChild(U.el('div', { class: 'auth-sec', text: 'Optional details' }));
     form.appendChild(locationDetails);
 
     // Honeypot: invisible to people, tempting to bots. Server rejects it if filled.
@@ -1046,34 +1101,39 @@
       inputs[k].addEventListener('input', function () { if (errEls[k].textContent) setError(k, checks[k]()); });
     });
 
+    // "Before you start": three tick boxes, each a tappable card.
+    form.appendChild(U.el('div', { class: 'auth-sec', text: 'Before you start' }));
+
     // Optional: start with pretend pupils/parents/staff/stock to explore. Ticked by
     // default because an empty school is hard to judge; removing it is one click.
-    var sampleBox = U.el('input', { type: 'checkbox', id: 'f-sample', checked: true, style: 'width:auto;flex:none;margin:.2rem 0 0' });
+    var sampleBox = U.el('input', { type: 'checkbox', id: 'f-sample', checked: true });
     form.appendChild(U.el('div', { class: 'field' }, [
-      U.el('label', { for: 'f-sample', style: 'display:flex;gap:.5rem;align-items:flex-start;justify-content:flex-start;text-align:left;font-weight:600;cursor:pointer' }, [sampleBox, U.el('span', { text: 'Start with sample data so I can explore' })]),
-      U.el('div', { class: 'help', text: 'Adds a few pretend pupils, fees, attendance, scores, stock, accounts and more so you can try every screen. Remove it in one click from your dashboard or Settings when you are ready for real records.' })
+      U.el('label', { for: 'f-sample', class: 'check-card' }, [sampleBox, U.el('span', { text: 'Start with sample data so I can explore' })]),
+      U.el('div', { class: 'help', text: 'Adds a few pretend pupils, fees, attendance, scores, stock and accounts so you can try every screen. Remove it in one click from your dashboard or Settings.' }),
+      reqNote(false)
     ]));
 
     // Required: the person confirms they may register this school (the server checks this too),
     // with a short warning about false claims. Shown BEFORE the Terms box.
-    var authBox = U.el('input', { type: 'checkbox', id: 'f-authority', style: 'width:auto;flex:none;margin:.2rem 0 0' });
+    var authBox = U.el('input', { type: 'checkbox', id: 'f-authority' });
     var authErr = U.el('div', { class: 'field-error', id: 'err-authority', 'aria-live': 'polite' });
+    var warn = U.el('div', { class: 'notice-warn', role: 'note' }, [icon('warn'), U.el('span', { text: 'Registering a school you are not authorised to represent, or pretending to be someone you are not, is a false claim. You can be held personally liable for any loss, your account may be closed, and it may be reported to the authorities under Ghana law.' })]);
     form.appendChild(U.el('div', { class: 'field' }, [
-      U.el('label', { for: 'f-authority', style: 'display:flex;gap:.5rem;align-items:flex-start;justify-content:flex-start;text-align:left;font-weight:600;cursor:pointer' }, [
+      U.el('label', { for: 'f-authority', class: 'check-card' }, [
         authBox,
         U.el('span', {}, [document.createTextNode('I am the owner or an authorised representative of this school, and I am allowed to register it.'), reqStar()])
       ]),
       reqNote(true),
       authErr,
-      U.el('div', { class: 'help', style: 'background:#fff8e6;border:1px solid #e6c36a;border-radius:8px;padding:.5rem .65rem;margin-top:.45rem', text: 'Please note: registering a school you are not authorised to represent, or pretending to be someone you are not, is a false claim. It can make you personally liable for any loss caused, your account may be closed, and it may be reported to the authorities under Ghana law.' })
+      warn
     ]));
     authBox.addEventListener('change', function () { if (authBox.checked) authErr.textContent = ''; });
 
     // Required: accept the Terms of Service and Privacy Notice (the server checks this too).
-    var termsBox = U.el('input', { type: 'checkbox', id: 'f-terms', style: 'width:auto;flex:none;margin:.2rem 0 0' });
+    var termsBox = U.el('input', { type: 'checkbox', id: 'f-terms' });
     var termsErr = U.el('div', { class: 'field-error', id: 'err-terms', 'aria-live': 'polite' });
     form.appendChild(U.el('div', { class: 'field' }, [
-      U.el('label', { for: 'f-terms', style: 'display:flex;gap:.5rem;align-items:flex-start;justify-content:flex-start;text-align:left;font-weight:600;cursor:pointer' }, [
+      U.el('label', { for: 'f-terms', class: 'check-card' }, [
         termsBox,
         U.el('span', {}, [document.createTextNode('I agree to the '), U.el('a', { href: '/terms.html', target: '_blank', rel: 'noopener', text: 'Terms of Service' }), document.createTextNode(' and '), U.el('a', { href: '/privacy.html', target: '_blank', rel: 'noopener', text: 'Privacy Notice' }), reqStar()])
       ]),
@@ -1085,6 +1145,7 @@
     var btn = U.el('button', { class: 'btn gold', type: 'submit', text: 'Create my school' });
     form.appendChild(alertBox);
     form.appendChild(btn);
+    form.appendChild(U.el('div', { class: 'secure-line' }, [icon('lock'), U.el('span', { text: 'Your school’s records stay private to your school.' })]));
 
     // Show a message next to the button and bring it into view.
     function showAlert(msg, stayPut) {
@@ -1148,7 +1209,7 @@
       U.el('a', { href: '/', text: 'Sign in' })
     ]));
     if (support) card.appendChild(U.el('p', { class: 'help login-alt', text: 'Need help? ' + support }));
-    wrap.appendChild(card);
+    wrap.appendChild(brandPanel('Sign in','/')); wrap.appendChild(card);
     root.appendChild(wrap);
     schoolIn.focus({ preventScroll: true });   // put the cursor in the first box WITHOUT scrolling the page to it
   }
@@ -1193,7 +1254,7 @@
       boot();
     } });
     card.appendChild(U.el('div', { class: 'welcome-actions' }, [openBtn, copyBtn]));
-    wrap.appendChild(card);
+    wrap.appendChild(brandPanel()); wrap.appendChild(card);
     root.appendChild(wrap);
     openBtn.focus();
   }
@@ -1249,7 +1310,7 @@
     card.appendChild(form);
     card.appendChild(U.el('div', { class: 'login-alt' }, [U.el('a', { href: schoolIn.value ? '/' + encodeURIComponent(schoolIn.value) : '/', text: '← Back to sign in' })]));
     card.appendChild(U.el('p', { class: 'help login-alt', text: 'Teachers, staff and parents: ask your school’s administrator to reset your password (Settings → Access Control).' }));
-    wrap.appendChild(card);
+    wrap.appendChild(brandPanel('Sign in','/')); wrap.appendChild(card);
     root.appendChild(wrap);
     (schoolIn.value ? userIn : schoolIn).focus();
   }
@@ -1268,7 +1329,7 @@
       U.el('li', { text: 'No email at all? ' + (support ? 'Contact us — ' + support + ' — and we will verify your school and help you in.' : 'Contact Zetranova support and we will verify your school and help you in.') })
     ]));
     card.appendChild(U.el('div', { class: 'welcome-actions' }, [U.el('a', { class: 'btn gold', href: '/' + encodeURIComponent(school), text: 'Back to sign in' })]));
-    wrap.appendChild(card);
+    wrap.appendChild(brandPanel('Sign in','/')); wrap.appendChild(card);
     root.appendChild(wrap);
   }
 
@@ -1286,7 +1347,7 @@
     if (!school || !/^[0-9a-f]{64}$/.test(token)) {
       card.appendChild(U.el('p', { class: 'muted', text: 'This link is incomplete. Please open the link in your email again, or ask for a new one.' }));
       card.appendChild(U.el('div', { class: 'welcome-actions' }, [U.el('a', { class: 'btn gold', href: '/forgot-password', text: 'Ask for a new link' })]));
-      wrap.appendChild(card); root.appendChild(wrap); return;
+      wrap.appendChild(brandPanel('Sign in','/')); wrap.appendChild(card); root.appendChild(wrap); return;
     }
     card.appendChild(U.el('p', { class: 'muted', text: 'For the school “' + school + '”. Pick something you will remember.' }));
 
@@ -1326,7 +1387,7 @@
       });
     });
     card.appendChild(form);
-    wrap.appendChild(card);
+    wrap.appendChild(brandPanel('Sign in','/')); wrap.appendChild(card);
     root.appendChild(wrap);
     passIn.focus();
   }
@@ -1383,7 +1444,7 @@
     form.appendChild(field('Password', passInput));
     form.appendChild(submitBtn);
     card.appendChild(form);
-    wrap.appendChild(card);
+    wrap.appendChild(brandPanel()); wrap.appendChild(card);
     root.appendChild(wrap);
     userInput.focus();
   }
