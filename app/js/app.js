@@ -442,7 +442,7 @@
       form.appendChild(U.el('div', { class: 'help', style: 'margin-top:.8rem;text-align:center;font-size:.75rem', text: 'This school starts with sample demo data for testing. An Admin can clear or restore it anytime in Settings → Sample Data.' }));
 
       card.appendChild(form);
-      wrap.appendChild(brandPanel('Free trial','/signup')); wrap.appendChild(card);
+      wrap.appendChild(brandPanel('Sign up','/signup')); wrap.appendChild(card);
       root.appendChild(wrap);
       roleSelect.focus();
     });
@@ -814,12 +814,12 @@
     var trialDays = (global.License && global.License.TRIAL_DAYS) || 30;
     card.appendChild(U.el('div', { class: 'login-alt' }, [
       U.el('span', { text: 'New to Zetclass? ' }),
-      U.el('a', { href: '/signup', text: 'Start your free ' + trialDays + '-day trial' })
+      U.el('a', { href: '/signup', text: 'Sign up and start your free ' + trialDays + '-day trial' })
     ]));
     var support = supportLine();
     card.appendChild(U.el('p', { class: 'help login-alt', text: 'Teachers, staff and parents who forgot their password: ask your school’s administrator to reset it' + (support ? '. Need help? ' + support : '.') }));
     card.appendChild(U.el('p', { class: 'help login-alt' }, [U.el('a', { href: '/terms.html', text: 'Terms of Service' }), document.createTextNode(' · '), U.el('a', { href: '/privacy.html', text: 'Privacy Notice' })]));
-    wrap.appendChild(brandPanel('Free trial','/signup')); wrap.appendChild(card);
+    wrap.appendChild(brandPanel('Sign up','/signup')); wrap.appendChild(card);
     root.appendChild(wrap);
     // Land on the first EMPTY box so a returning visitor can just start typing.
     (schoolInput.value ? userInput : schoolInput).focus();
