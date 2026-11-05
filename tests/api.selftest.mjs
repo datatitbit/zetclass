@@ -236,6 +236,22 @@ const tA = sa.json.token, tB = sb.json.token, tC = sc.json.token;
   const otherSchool = await call('POST', 'seq/student', {}, tB);
   check('A: sample data can raise the pupil counter (98), the next real pupil is 99, and it never goes down', bump.json === 98 && afterBump.json === 99 && noLower.json === 99, [bump.json, afterBump.json, noLower.json]);
   check('B: another school’s pupil counter is not affected', otherSchool.json === 1, otherSchool.json);
+
+  // --- reserving a batch of numbers for working offline ---
+  const res1 = await call('POST', 'seq/staff', { count: 5 }, tA);
+  check('a device can reserve a batch of 5 numbers (first..last)', res1.status === 200 && res1.json.last - res1.json.first === 4 && res1.json.first >= 1, res1.json);
+  const afterBatch = await call('POST', 'seq/staff', {}, tA);
+  check('the next number after a batch is beyond it (nobody can be given a reserved number)', afterBatch.json === res1.json.last + 1, afterBatch.json);
+  const noRel = await call('POST', 'seq/staff', { release_last: res1.json.last, release_count: 5 }, tA);
+  check('unused numbers are NOT taken back once someone has been given a later number', noRel.json.released === false, noRel.json);
+  const res2 = await call('POST', 'seq/invtxn', { count: 3 }, tA);
+  const back = await call('POST', 'seq/invtxn', { release_last: res2.json.last, release_count: 3 }, tA);
+  const again = await call('POST', 'seq/invtxn', {}, tA);
+  check('unused numbers ARE handed back when nobody took any later one (no gap is left)', back.json.released === true && again.json === res2.json.first, [back.json, again.json, res2.json]);
+  const big = await call('POST', 'seq/staff', { count: 5000 }, tA);
+  check('a batch is capped (at most 50 at a time)', big.json.last - big.json.first === 49, big.json);
+  const otherB = await call('POST', 'seq/staff', { count: 5 }, tB);
+  check('another school’s numbers are separate', otherB.json.first === 2 && otherB.json.last === 6, otherB.json);
 }
 
 // ---------------------------------------------------------------

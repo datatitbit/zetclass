@@ -105,17 +105,34 @@
   // logging in again. See the matching note in app.js. Any token left behind
   // by a pre-2026-08-03 build is purged on sight.
   var API_TOKEN_KEY = 'sms_api_token';
+  // OPT-IN exception: if the person ticked "Keep me signed in on this device", the token is also kept in
+  // localStorage (so the installed app reopens, even offline) until it would expire anyway (12 hours).
+  // Without that tick nothing here changes: the token lives only in sessionStorage.
+  var KEEP_FLAG = 'zc_keep_until', KEEP_TOKEN = 'zc_keep_token';
+  function keepActive() { try { var u = Number(localStorage.getItem(KEEP_FLAG) || 0); return u > Date.now(); } catch (e) { return false; } }
+  function setKeepSignedIn(on) {
+    try {
+      if (on) localStorage.setItem(KEEP_FLAG, String(Date.now() + 12 * 3600 * 1000));
+      else { localStorage.removeItem(KEEP_FLAG); localStorage.removeItem(KEEP_TOKEN); localStorage.removeItem('zc_keep_meta'); }
+    } catch (e) {}
+  }
   function loadApiToken() {
     try { localStorage.removeItem(API_TOKEN_KEY); } catch (e) {}
-    try { return sessionStorage.getItem(API_TOKEN_KEY) || null; } catch (e) { return null; }
+    var t = null;
+    try { t = sessionStorage.getItem(API_TOKEN_KEY) || null; } catch (e) {}
+    if (!t && keepActive()) { try { t = localStorage.getItem(KEEP_TOKEN) || null; if (t) sessionStorage.setItem(API_TOKEN_KEY, t); } catch (e) {} }
+    return t;
   }
   function saveApiToken(t) {
     try { if (t) sessionStorage.setItem(API_TOKEN_KEY, t); else sessionStorage.removeItem(API_TOKEN_KEY); } catch (e) {}
     try { localStorage.removeItem(API_TOKEN_KEY); } catch (e) {}
+    try { if (t && keepActive()) localStorage.setItem(KEEP_TOKEN, t); else localStorage.removeItem(KEEP_TOKEN); } catch (e) {}
   }
 
   function ApiAdapter(base) { this.base = base; this.token = loadApiToken(); }
-  ApiAdapter.prototype._req = function (method, path, body, opts) {
+  // _net() is one real trip to the server. A failure to reach it is thrown as an error with .network = true;
+  // _req() (below) decides whether that means "use the saved copy / queue it" or "tell the person".
+  ApiAdapter.prototype._net = function (method, path, body, opts) {
     opts = opts || {};
     var headers = { 'Content-Type': 'application/json' };
     if (this.token && !opts.noAuth) headers['Authorization'] = 'Bearer ' + this.token;
@@ -131,7 +148,11 @@
         url += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(v);
       });
     }
+    // A slow, half-working connection must not hang the app: give up after 15 seconds.
+    var ctl = global.AbortController ? new global.AbortController() : null, timer = null;
+    if (ctl) { fetchOpts.signal = ctl.signal; timer = setTimeout(function () { ctl.abort(); }, opts.timeout || 15000); }
     return fetch(url, fetchOpts).then(function (r) {
+      if (timer) clearTimeout(timer);
       return r.text().then(function (txt) {
         var data = null;
         try { data = txt ? JSON.parse(txt) : null; } catch (e) { /* non-JSON error page etc. */ }
@@ -163,11 +184,130 @@
         }
         return data;
       });
-    }).catch(function (e) {
-      if (e && e.status) throw e; // already reported above (401/403/other HTTP error)
-      if (global.U && global.U.toast) global.U.toast('Network/API error — check your connection.', 'err');
-      throw e;
+    }, function (e) {
+      if (timer) clearTimeout(timer);
+      var ne = new Error('You appear to be offline. Please check your internet connection and try again.');
+      ne.network = true; ne.original = e;
+      throw ne;
     });
+  };
+
+  /* ---- Offline layer (see offline.js) ---------------------------------------------------------------
+   * Online: every call goes to the server; what is read or written is also saved on the device.
+   * Offline / bad network: reads come from the saved copy; teaching work (the collections below) is
+   * queued and shown straight away, then sent when the network returns. Everything else says
+   * "needs internet", because money and ID numbers must be issued by the server, one at a time. */
+  // Day-to-day work that can be done without a network (core details, registration, scores, attendance, fees, stock).
+  var OFFLINE_WRITE_OK = { students: 1, parents: 1, staff: 1, attendance: 1, staffAttendance: 1, scores: 1, studentRemarks: 1, conduct: 1, checklists: 1,
+    invoices: 1, payments: 1, expenses: 1, otherIncome: 1, inventoryItems: 1, inventoryStock: 1, stockMovements: 1, inventoryTransactions: 1, inventoryAudit: 1, announcements: 1 };
+  var NUMBER_KINDS = ['student', 'staff', 'invtxn'], BATCH = 20, LOW = 6;
+  var NO_SAVED_COPY = { users: 1, export: 1, import: 1, platform: 1, schools: 1, auth: 1, impersonate: 1, provision: 1, register: 1, reset: 1, suspend: 1, trial: 1, plan: 1, seq: 1, verification: 1, pay: 1, sms: 1 };
+  function splitPath(path) { var p = String(path).split('/'); return { head: p[0], arg: p[1] || null }; }
+  function netToast(e) {
+    if (e && e.network && global.U && global.U.toast) global.U.toast('Network/API error — check your connection.', 'err');
+    throw e;
+  }
+  function offlineToast(msg) { if (global.U && global.U.toast) global.U.toast(msg, 'warn'); }
+  function newId(head) { var a = new Uint8Array(5); (global.crypto || {}).getRandomValues ? global.crypto.getRandomValues(a) : a.forEach(function (_, i) { a[i] = Math.floor(Math.random() * 256); }); return head + '-' + Array.prototype.map.call(a, function (b) { return ('0' + b.toString(16)).slice(-2); }).join(''); }
+
+  ApiAdapter.prototype._req = function (method, path, body, opts) {
+    var self = this; opts = opts || {};
+    var O = global.Offline;
+    if (opts.noAuth || !O || !O.enabled()) return this._net(method, path, body, opts).catch(netToast);
+    var info = splitPath(path);
+    var cacheKey = path + (opts.query ? '?' + JSON.stringify(opts.query) : '');
+
+    // ----- reads -----
+    if (method === 'GET') {
+      if (NO_SAVED_COPY[info.head]) return this._net(method, path, body, opts).catch(netToast);
+      var fromSaved = function () {
+        return O.getCache(cacheKey).then(function (hit) {
+          if (hit.found) return hit.data;
+          offlineToast('This is not available offline yet. Open it once while online.');
+          var e = new Error('Not available offline'); e.network = true; throw e;
+        });
+      };
+      if (O.shouldSkipNetwork()) return fromSaved();
+      return this._flushIfNeeded().then(function () { return self._net(method, path, body, opts); }).then(function (data) {
+        O.setOffline(false); O.putCache(cacheKey, data); return data;
+      }, function (err) {
+        if (!err || !err.network) throw err;
+        O.setOffline(true); return fromSaved();
+      });
+    }
+
+    // ----- writes -----
+    var canQueue = !!OFFLINE_WRITE_OK[info.head] && !(method === 'PUT' && !info.arg) && !!body !== (method === 'DELETE');
+    if (method === 'POST' && canQueue && body && !body.id) body.id = newId(info.head);   // the id is chosen here, so a repeated send changes nothing
+    var queueIt = function () {
+      return O.enqueue({ method: method, path: path, body: body || null }).then(function () {
+        return O.applyLocal(method, info.head, info.arg, body, null);
+      }).then(function (merged) { return method === 'DELETE' ? { ok: true } : (merged || body || { ok: true }); });
+    };
+    var online = function () {
+      return self._net(method, path, body, opts).then(function (res) {
+        O.setOffline(false);
+        if (OFFLINE_WRITE_OK[info.head]) O.applyLocal(method, info.head, info.arg, body, res);
+        return res;
+      });
+    };
+    if (O.shouldSkipNetwork()) {
+      if (canQueue) return queueIt();
+      offlineToast('This needs an internet connection. Please try again when you are back online.');
+      var ne = new Error('This needs an internet connection.'); ne.network = true; return Promise.reject(ne);
+    }
+    return this._flushIfNeeded().then(online).catch(function (err) {
+      if (!err || !err.network) throw err;
+      O.setOffline(true);
+      if (canQueue) return queueIt();
+      offlineToast('This needs an internet connection. Please try again when you are back online.');
+      throw err;
+    });
+  };
+
+  // Sends the changes made offline, in order. Stops (and keeps the rest) if the network drops again or the
+  // session has expired; drops a change the server refuses (for example a view-only school) and says so.
+  ApiAdapter.prototype._flushIfNeeded = function () {
+    var O = global.Offline;
+    if (O && O.enabled() && O.pending() > 0 && !O.shouldSkipNetwork()) return this.syncNow();
+    return Promise.resolve();
+  };
+  ApiAdapter.prototype.syncNow = function () {
+    var self = this, O = global.Offline;
+    if (!O || !O.enabled()) return Promise.resolve({ done: 0, failed: 0 });
+    if (self._syncing) return self._syncing;
+    O.setSyncing(true);
+    self._syncing = O.queueAll().then(function (items) {
+      var done = 0, failed = 0, i = 0, touched = {};
+      function step() {
+        if (i >= items.length) return null;
+        var it = items[i++];
+        return self._net(it.method, it.path, it.body, {}).then(function () {
+          done++; touched[splitPath(it.path).head] = 1;
+          return O.dequeue(it.n).then(step);
+        }, function (err) {
+          if (err && (err.network || err.status === 401)) throw err;   // keep the queue; try again later / after signing in
+          failed++; return O.dequeue(it.n).then(step);                 // refused by the server: drop it, and tell the person
+        });
+      }
+      return Promise.resolve(step()).then(function () { return { done: done, failed: failed, touched: touched }; });
+    }).then(function (r) {
+      O.setOffline(false);
+      var heads = Object.keys(r.touched);
+      return Promise.all(heads.map(function (h) { return self._net('GET', h, null, {}).then(function (d) { return O.putCache(h, d); }, function () {}); })).then(function () { O.noteSynced(r.done, r.failed); return r; });
+    }, function (err) {
+      if (err && err.network) O.setOffline(true);
+      return { done: 0, failed: 0, stopped: true };
+    }).then(function (r) { O.setSyncing(false); self._syncing = null; return r; });
+    return self._syncing;
+  };
+  // Is the server reachable again? Any answer (even "not signed in") means the network is back.
+  ApiAdapter.prototype.probe = function () {
+    var self = this, O = global.Offline;
+    return fetch(self.base + '?r=ping', { cache: 'no-store' }).then(function () {
+      if (O) O.setOffline(false);
+      return self.syncNow();
+    }, function () { if (O) O.setOffline(true); return null; });
   };
   ApiAdapter.prototype.all = function (coll) { return this._req('GET', coll); };
   ApiAdapter.prototype.get = function (coll, id) { return this._req('GET', coll + '/' + id); };
@@ -177,11 +317,46 @@
   ApiAdapter.prototype.replaceAll = function (coll, arr) { return this._req('PUT', coll, { replace: arr }); };
   ApiAdapter.prototype.getSingleton = function (name) { return this._req('GET', 'singleton/' + name); };
   ApiAdapter.prototype.setSingleton = function (name, obj) { return this._req('PUT', 'singleton/' + name, obj); };
-  ApiAdapter.prototype.nextSeq = function (kind) { return this._req('POST', 'seq/' + kind, {}); };
+  // ID numbers: use this device's reserved batch first (so numbers stay in order, online or not); when it runs out
+  // ask the server, then top the batch up in the background. With no network and no batch left, say so.
+  ApiAdapter.prototype.nextSeq = function (kind) {
+    var self = this, O = global.Offline;
+    if (!O || !O.enabled() || NUMBER_KINDS.indexOf(kind) === -1) return this._req('POST', 'seq/' + kind, {});
+    return O.takeNumber(kind).then(function (n) {
+      if (n != null) { self._topUp(kind); return n; }
+      var needNet = function () { offlineToast('Please connect to the internet to get the next ID number.'); var e = new Error('This needs an internet connection.'); e.network = true; throw e; };
+      if (O.shouldSkipNetwork()) return needNet();
+      return self._net('POST', 'seq/' + kind, {}, {}).then(function (num) { O.setOffline(false); self._topUp(kind); return num; }, function (err) {
+        if (err && err.network) { O.setOffline(true); return needNet(); }
+        throw err;
+      });
+    });
+  };
+  // Keep a few numbers in hand for working offline.
+  ApiAdapter.prototype._topUp = function (kind) {
+    var self = this, O = global.Offline;
+    if (!O || !O.enabled() || O.shouldSkipNetwork() || self['_topping_' + kind]) return Promise.resolve();
+    self['_topping_' + kind] = true;
+    return O.blockLeft(kind).then(function (left) {
+      if (left >= LOW) return null;
+      return self._net('POST', 'seq/' + kind, { count: BATCH }, {}).then(function (r) { if (r && r.last) return O.blockAdd(kind, r.first, r.last); });
+    }).catch(function () {}).then(function () { self['_topping_' + kind] = false; });
+  };
+  ApiAdapter.prototype.prepareOffline = function () { var self = this; return Promise.all(NUMBER_KINDS.map(function (k) { return self._topUp(k); })); };
+  // On log out (online): hand unused numbers back to the school, so no gaps are left.
+  ApiAdapter.prototype.releaseNumbers = function () {
+    var self = this, O = global.Offline;
+    if (!O || !O.enabled() || O.shouldSkipNetwork()) return Promise.resolve();
+    return Promise.all(NUMBER_KINDS.map(function (k) {
+      return O.blockRanges(k).then(function (rs) {
+        return rs.reduce(function (p, g) { return p.then(function () { return self._net('POST', 'seq/' + k, { release_last: g.to, release_count: g.to - g.from + 1 }, {}).catch(function () {}); }); }, Promise.resolve());
+      }).then(function () { return O.blockClear(k); });
+    })).catch(function () {});
+  };
   ApiAdapter.prototype.bumpSeq = function (kind, n) { return this._req('POST', 'seq/' + kind, { at_least: n }); };
   ApiAdapter.prototype.exportAll = function () { return this._req('GET', 'export'); };
-  ApiAdapter.prototype.importAll = function (data) { return this._req('PUT', 'import', data); };
-  ApiAdapter.prototype.reset = function () { return this._req('POST', 'reset', {}); };
+  ApiAdapter.prototype.importAll = function (data) { return this._req('PUT', 'import', data).then(function (r) { NUMBER_KINDS.forEach(function (k) { if (global.Offline) global.Offline.blockClear(k); }); return r; }); };
+  ApiAdapter.prototype.reset = function () { return this._req('POST', 'reset', {}).then(function (r) { NUMBER_KINDS.forEach(function (k) { if (global.Offline) global.Offline.blockClear(k); }); return r; }); };
 
   // login/logout are the only calls that ever send a client-chosen school_id —
   // and only as a LOOKUP HINT for ?r=auth/login (find this school's user by
@@ -334,6 +509,16 @@
       return adapter.resetPassword(schoolId, token, password);
     },
     apiLogout: function () { return DB.isApi ? adapter.logout() : Promise.resolve(true); },
+    // ---- offline use (see offline.js) ----
+    keepSignedIn: function (on) { setKeepSignedIn(on); },
+    isKeptSignedIn: function () { return keepActive(); },
+    offlineScope: function (scope) { return global.Offline ? global.Offline.setScope(scope) : Promise.resolve(); },
+    offlineClear: function () { setKeepSignedIn(false); return global.Offline ? global.Offline.clearAll() : Promise.resolve(); },
+    offlinePending: function () { return global.Offline ? global.Offline.pending() : 0; },
+    syncNow: function () { return DB.isApi ? adapter.syncNow() : Promise.resolve(); },
+    probeNetwork: function () { return DB.isApi ? adapter.probe() : Promise.resolve(); },
+    prepareOffline: function () { return DB.isApi ? adapter.prepareOffline() : Promise.resolve(); },
+    releaseNumbers: function () { return DB.isApi ? adapter.releaseNumbers() : Promise.resolve(); },
     hasApiToken: function () { return DB.isApi && adapter.hasToken(); },
 
     // This school's own licence/trial state, straight from the server. Resolves

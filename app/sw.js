@@ -10,7 +10,7 @@
  * ============================================================ */
 'use strict';
 
-var CACHE_VERSION = 'v20261124';
+var CACHE_VERSION = 'v20261125';
 var CACHE_NAME = 'zetclass-' + CACHE_VERSION;
 
 // Minimum shell needed to boot offline. Everything else is cached
@@ -19,7 +19,9 @@ var SHELL = [
   './',
   './index.html',
   './manifest.webmanifest',
-  './icon.svg'
+  './logo.png',
+  './icon-192.png',
+  './favicon-32.png'
 ];
 
 self.addEventListener('install', function (event) {

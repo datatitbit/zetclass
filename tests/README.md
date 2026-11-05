@@ -1,7 +1,7 @@
 # Tests
 
 `api.selftest.mjs` checks the whole server: signup rules, many schools in one database, school isolation,
-trial / payment / expiry rules, roles, throttling, the developer-only routes (including editing a school's details), the country-code rule on signup, and the forgot-password flow (238 checks; 212 without the pretend mail server).
+trial / payment / expiry rules, roles, throttling, the developer-only routes (including editing a school's details), the country-code rule on signup, and the forgot-password flow (244 checks; 218 without the pretend mail server).
 
 **Run it only against a throwaway test server — never the live site** (it creates schools and uses up the signup quota).
 
@@ -33,6 +33,6 @@ MAIL_DIR=/tmp/mails PHP_BIN=php SQLITE_DB=/tmp/test.sqlite node tests/api.selfte
 ```
 Without `MAIL_DIR` that section is skipped.
 
-Every line should say `ok`; the last line should say `238 passed, 0 failed` (`212 passed` when `MAIL_DIR` is not set).
+Every line should say `ok`; the last line should say `244 passed, 0 failed` (`218 passed` when `MAIL_DIR` is not set).
 The sample-data screens (js/sample-data.js) run in the browser, so they are checked by hand: sign up with the box ticked, open every module, then use Settings → Sample Data to remove and add groups.
 Run it before every upload to the live server.

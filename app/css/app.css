@@ -267,3 +267,12 @@ table.data td.actions { white-space: nowrap; }
 .start-steps a:hover { text-decoration:underline; }
 .forgot-link { font-size:.85rem; color:var(--teal); font-weight:600; text-decoration:none; }
 .forgot-link:hover { text-decoration:underline; }
+
+/* ---- Offline / sync status pill and install button ---- */
+.zc-sync { position: fixed; left: 50%; bottom: 16px; transform: translate(-50%, 20px); max-width: min(92vw, 540px); padding: .6rem 1rem; border-radius: 12px; font-size: .88rem; font-weight: 600; line-height: 1.35; text-align: center; box-shadow: 0 8px 24px rgba(0,0,0,.25); z-index: 300; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; }
+.zc-sync.show { opacity: 1; transform: translate(-50%, 0); }
+.zc-sync.off { background: #8a5a00; color: #fff; }
+.zc-sync.sync { background: #124545; color: #fff; }
+.zc-sync.ok { background: #1b6b3a; color: #fff; }
+.install-row { text-align: center; margin-top: .9rem; }
+@media (prefers-reduced-motion: reduce) { .zc-sync { transition: none; } }

@@ -1602,6 +1602,27 @@ if ($head === 'seq' && $method === 'POST') {
     if (!$chk->fetch()) {
         $pdo->prepare("INSERT INTO meta_seq(school_id,kind,val) VALUES(?,?,0)")->execute([$SCHOOL, $arg]);
     }
+    // Reserve a batch of numbers for a device that may go offline: {count: N} -> {first, last}. Nobody else can be
+    // given a number in that range, so two phones can never issue the same ID. Unused numbers are handed back with
+    // {release_last: L, release_count: C} - accepted only while nobody has taken a number after them.
+    if (isset($b['count'])) {
+        $c = max(1, min(50, (int)$b['count']));
+        $pdo->beginTransaction();
+        try {
+            $pdo->prepare("UPDATE meta_seq SET val = val + ? WHERE school_id=? AND kind=?")->execute([$c, $SCHOOL, $arg]);
+            $v = $pdo->prepare("SELECT val FROM meta_seq WHERE school_id=? AND kind=?");
+            $v->execute([$SCHOOL, $arg]);
+            $last = (int)$v->fetch()['val'];
+            $pdo->commit();
+        } catch (Throwable $e) { if ($pdo->inTransaction()) { $pdo->rollBack(); } out(['error' => 'Could not reserve numbers'], 500); }
+        out(['first' => $last - $c + 1, 'last' => $last]);
+    }
+    if (isset($b['release_last'])) {
+        $L = (int)$b['release_last']; $c = max(1, min(50, (int)($b['release_count'] ?? 1)));
+        $u = $pdo->prepare("UPDATE meta_seq SET val = val - ? WHERE school_id=? AND kind=? AND val=? AND val >= ?");
+        $u->execute([$c, $SCHOOL, $arg, $L, $c]);
+        out(['released' => $u->rowCount() > 0]);
+    }
     if (isset($b['at_least'])) {
         // Raise the counter to at least N (never lowers it, never adds 1). Used when
         // sample records that already carry numbers (ST0001…) are loaded, so the

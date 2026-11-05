@@ -279,15 +279,24 @@
   // so the adapter can rehydrate itself independently of this file.
   // Same sessionStorage reasoning as above.
   var API_SESSION_KEY = 'sms_api_session_meta';
+  // (Opt-in "Keep me signed in on this device": the same non-secret details are also kept in localStorage, until the
+  // 12 hours are up. Without the tick nothing leaves sessionStorage.)
   function loadApiSessionMeta() {
     purgeLegacySession(API_SESSION_KEY);
-    try { return JSON.parse(sessionStorage.getItem(API_SESSION_KEY)); } catch (e) { return null; }
+    var m = null;
+    try { m = JSON.parse(sessionStorage.getItem(API_SESSION_KEY)); } catch (e) {}
+    if (!m && DB.isKeptSignedIn && DB.isKeptSignedIn()) {
+      try { m = JSON.parse(localStorage.getItem('zc_keep_meta')); if (m) sessionStorage.setItem(API_SESSION_KEY, JSON.stringify(m)); } catch (e) {}
+    }
+    return m;
   }
   function saveApiSessionMeta(meta) {
     try { sessionStorage.setItem(API_SESSION_KEY, JSON.stringify(meta)); } catch (e) {}
+    try { if (DB.isKeptSignedIn && DB.isKeptSignedIn()) localStorage.setItem('zc_keep_meta', JSON.stringify(meta)); } catch (e) {}
   }
   function clearApiSessionMeta() {
     try { sessionStorage.removeItem(API_SESSION_KEY); } catch (e) {}
+    try { localStorage.removeItem('zc_keep_meta'); } catch (e) {}
     purgeLegacySession(API_SESSION_KEY);
   }
 
@@ -297,11 +306,25 @@
 
   function logout() {
     if (DB.isApi) {
-      DB.apiLogout().then(function () {
-        App.user = null; App.schoolId = null; App.forbiddenMessage = null;
-        App.impersonating = false; App.impExpiresAt = null;
-        clearApiSessionMeta(); chooseRoleApi();
-      });
+      // Log out wipes what Zetclass saved on this device (records for offline use), so first make sure
+      // nothing made offline is still waiting to be sent.
+      var finish = function () {
+        DB.releaseNumbers().then(function () { return DB.offlineClear(); }).then(function () { return DB.apiLogout(); }).then(function () {
+          App.user = null; App.schoolId = null; App.forbiddenMessage = null;
+          App.impersonating = false; App.impExpiresAt = null;
+          clearApiSessionMeta(); chooseRoleApi();
+        });
+      };
+      var lostWarning = function () {
+        var n = DB.offlinePending();
+        U.confirm('You have ' + n + ' change' + (n === 1 ? '' : 's') + ' saved on this device that ha' + (n === 1 ? 's' : 've') + ' not reached the server yet. If you log out now ' + (n === 1 ? 'it' : 'they') + ' will be lost. Log out anyway?', finish);
+      };
+      if (DB.offlinePending() > 0) {
+        if (global.navigator.onLine === false) { lostWarning(); return; }
+        DB.syncNow().then(function () { if (DB.offlinePending() > 0) lostWarning(); else finish(); });
+        return;
+      }
+      finish();
       return;
     }
     App.user = null; clearSession(); chooseRole();
@@ -489,9 +512,28 @@
     });
   }
 
+  // ---- Install as an app (PWA) ----
+  var deferredInstall = null;
+  global.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); deferredInstall = e; });
+  global.addEventListener('appinstalled', function () { deferredInstall = null; });
+  function isStandalone() { return (global.matchMedia && global.matchMedia('(display-mode: standalone)').matches) || global.navigator.standalone === true; }
+  function installApp() {
+    if (deferredInstall) { deferredInstall.prompt(); deferredInstall.userChoice.then(function () { deferredInstall = null; }); return; }
+    var ua = global.navigator.userAgent || '', how;
+    if (/iphone|ipad|ipod/i.test(ua)) how = 'Tap the Share button in Safari, then choose “Add to Home Screen”.';
+    else if (/android/i.test(ua)) how = 'Open your browser menu (⋮) and choose “Install app” or “Add to Home screen”.';
+    else how = 'In Chrome or Edge, click the install icon at the right end of the address bar, or open the browser menu and choose “Install Zetclass”.';
+    U.modal({ title: 'Install Zetclass', body: U.el('div', {}, [U.el('p', { text: how }), U.el('p', { class: 'help', text: 'Zetclass then opens from its own icon, like any app. No app store is needed.' })]) });
+  }
+  function installRow() {
+    if (isStandalone()) return null;
+    return U.el('div', { class: 'install-row' }, [U.el('button', { type: 'button', class: 'btn ghost', text: '⤓ Install Zetclass on this device', onclick: installApp })]);
+  }
+
   function accountMenu() {
     var body = U.el('div', { class: 'role-grid' });
     body.appendChild(U.el('button', { text: 'Change password', onclick: function () { m.close(); openChangePasswordModal(); } }));
+    if (!isStandalone()) body.appendChild(U.el('button', { text: 'Install app on this device', onclick: function () { m.close(); installApp(); } }));
     body.appendChild(U.el('button', { text: 'Log out', onclick: function () { m.close(); logout(); } }));
     var m = U.modal({ title: App.user.name + ' (' + App.user.role + ')', body: body, actions: [{ label: 'Close', onClick: function (c) { c(); } }] });
   }
@@ -714,7 +756,44 @@
     });
   }
 
+  // ---- Offline use: the status pill, and when to retry sending changes made offline ----
+  function initOfflineUi() {
+    if (App._offlineUi || !global.Offline) return;
+    App._offlineUi = true;
+    // A small, friendly status pill. Work done without a network is kept on the device and sent automatically
+    // when the network returns; the screens then refresh with the synced data.
+    var bar = U.el('div', { class: 'zc-sync', role: 'status', 'aria-live': 'polite' });
+    document.body.appendChild(bar);
+    var shownSynced = 0, hideTimer = null;
+    global.Offline.onChange(function (st) {
+      var msg = '', cls = '';
+      if (st.syncing) { msg = 'Syncing your work…'; cls = 'sync'; }
+      else if (st.offline) { msg = 'Working offline. Your work is saved on this device and will sync when you are back online.' + (st.pending ? ' (' + st.pending + ' waiting)' : ''); cls = 'off'; }
+      else if (st.pending > 0) { msg = st.pending + ' waiting to sync…'; cls = 'sync'; }
+      else if (st.lastSynced && st.lastSynced !== shownSynced) {
+        shownSynced = st.lastSynced;
+        msg = st.failed ? 'Synced. ' + st.failed + ' change' + (st.failed === 1 ? '' : 's') + ' could not be saved.' : '✓ Synced';
+        cls = st.failed ? 'off' : 'ok';
+        clearTimeout(hideTimer); hideTimer = setTimeout(function () { bar.className = 'zc-sync'; }, 3500);
+        // Show the newly synced data, unless the person is in the middle of a form.
+        if (!document.querySelector('.modal-overlay') && App.refresh) App.refresh().then(function () { router(); }, function () {});
+      }
+      if (msg) { bar.textContent = msg; bar.className = 'zc-sync show ' + cls; }
+      else if (bar.className.indexOf(' ok') === -1) { bar.className = 'zc-sync'; }
+    });
+    global.addEventListener('online', function () { DB.probeNetwork(); });
+    global.addEventListener('offline', function () { global.Offline.setOffline(true); });
+    setInterval(function () {
+      if (!App.user || !DB.isApi) return;
+      if (global.Offline.isOffline() || DB.offlinePending() > 0) DB.probeNetwork();
+    }, 12000);
+  }
+
   function boot() {
+    if (DB.isApi && App.user && App.user.role !== 'Platform' && !App.impersonating && App.schoolId) {
+      initOfflineUi();
+      DB.offlineScope(App.schoolId + '|' + App.user.id).then(function () { if (DB.offlinePending() > 0) DB.syncNow(); DB.prepareOffline(); });
+    }
     App.refresh().then(function () {
       return (global.License ? global.License.resolve() : Promise.resolve(null));
     }).then(function (lic) {
@@ -836,6 +915,7 @@
       if (!userVal) { showError('Please enter your username.'); userInput.focus(); return; }
       if (!passVal) { showError('Please enter your password.'); passInput.focus(); return; }
       submitBtn.disabled = true; submitBtn.textContent = 'Signing in…';
+      DB.keepSignedIn(keepBox.checked);   // must be set before the sign-in saves its token
       DB.apiLogin(userVal, passVal, schoolVal, typeSel.value).then(function (res) {
         submitBtn.disabled = false; submitBtn.textContent = 'Sign in';
         try { localStorage.setItem('zc_last_login', JSON.stringify({ school: schoolVal, type: typeSel.value })); } catch (e2) { /* private mode: fine */ }
@@ -844,6 +924,7 @@
         boot();
       }).catch(function (err) {
         submitBtn.disabled = false; submitBtn.textContent = 'Sign in';
+        DB.keepSignedIn(false);
         // 401 = the server could not match school + user type + username + password. Say that in everyday
         // words, naming all of them since any one can be the typo.
         showError(err && err.status === 401
@@ -870,12 +951,19 @@
     form.appendChild(field('User type', typeSel, typeHelp));
     form.appendChild(field('Username', userInput, U.el('div', { class: 'help', text: 'Given to you by your school’s administrator.' })));
     form.appendChild(field('Password', U.el('div', { class: 'pw-wrap' }, [passInput, showBtn])));
+    // Opt-in: stay signed in on THIS device. Off by default.
+    var keepBox = U.el('input', { type: 'checkbox', id: 'f-keep' });
+    form.appendChild(U.el('div', { class: 'field' }, [
+      U.el('label', { for: 'f-keep', class: 'check-card' }, [keepBox, U.el('span', { text: 'Keep me signed in on this device, so it works offline' })]),
+      U.el('div', { class: 'help', text: 'Only tick this on your own phone or computer. You are signed out after 12 hours, or when you tap Log out.' })
+    ]));
     form.appendChild(U.el('div', { style: 'text-align:right;margin:-.4rem 0 .6rem' }, [
       U.el('a', { href: '/forgot-password' + (App.schoolIdHint ? '?school=' + encodeURIComponent(App.schoolIdHint) : ''), class: 'forgot-link', text: 'Forgot password?' })
     ]));
     form.appendChild(submitBtn);
 
     card.appendChild(form);
+    var ir = installRow(); if (ir) card.appendChild(ir);
     // New schools: a clear, friendly way in. This is the front door of the product.
     var trialDays = (global.License && global.License.TRIAL_DAYS) || 30;
     card.appendChild(U.el('div', { class: 'login-alt' }, [

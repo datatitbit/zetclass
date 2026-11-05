@@ -1,7 +1,7 @@
 {
   "name": "Zetclass",
   "short_name": "Zetclass",
-  "description": "Zetclass — attendance, scores, fees, reports and more, online or offline.",
+  "description": "Zetclass — school management that works offline. Whatever you enter is saved on your device and syncs automatically when you are back online.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
