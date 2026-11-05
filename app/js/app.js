@@ -811,6 +811,7 @@
     ]));
     var support = supportLine();
     card.appendChild(U.el('p', { class: 'help login-alt', text: 'Teachers, staff and parents who forgot their password: ask your school’s administrator to reset it' + (support ? '. Need help? ' + support : '.') }));
+    card.appendChild(U.el('p', { class: 'help login-alt' }, [U.el('a', { href: '/terms.html', text: 'Terms of Service' }), document.createTextNode(' · '), U.el('a', { href: '/privacy.html', text: 'Privacy Notice' })]));
     wrap.appendChild(card);
     root.appendChild(wrap);
     // Land on the first EMPTY box so a returning visitor can just start typing.
@@ -831,6 +832,7 @@
   function supportLine() {
     var c = global.ZETCLASS_CONTACT || {}, bits = [];
     if (c.whatsapp) bits.push('WhatsApp ' + c.whatsapp);
+    if (c.phone) bits.push('Call ' + c.phone);
     if (c.email) bits.push(c.email);
     return bits.join(' · ');
   }
@@ -968,6 +970,18 @@
       U.el('div', { class: 'help', text: 'Adds a few pretend pupils, fees, attendance, scores, stock, accounts and more so you can try every screen. Remove it in one click from your dashboard or Settings when you are ready for real records.' })
     ]));
 
+    // Required: accept the Terms of Service and Privacy Notice (the server checks this too).
+    var termsBox = U.el('input', { type: 'checkbox', id: 'f-terms', style: 'width:auto;flex:none;margin:.2rem 0 0' });
+    var termsErr = U.el('div', { class: 'field-error', id: 'err-terms', 'aria-live': 'polite' });
+    form.appendChild(U.el('div', { class: 'field' }, [
+      U.el('label', { for: 'f-terms', style: 'display:flex;gap:.5rem;align-items:flex-start;justify-content:flex-start;text-align:left;font-weight:600;cursor:pointer' }, [
+        termsBox,
+        U.el('span', {}, [document.createTextNode('I agree to the '), U.el('a', { href: '/terms.html', target: '_blank', rel: 'noopener', text: 'Terms of Service' }), document.createTextNode(' and '), U.el('a', { href: '/privacy.html', target: '_blank', rel: 'noopener', text: 'Privacy Notice' })])
+      ]),
+      termsErr
+    ]));
+    termsBox.addEventListener('change', function () { if (termsBox.checked) termsErr.textContent = ''; });
+
     var btn = U.el('button', { class: 'btn gold', type: 'submit', text: 'Create my school' });
     form.appendChild(btn);
 
@@ -976,8 +990,11 @@
       alertBox.style.display = 'none';
       var firstBad = null;
       order.forEach(function (k) { var m = checks[k](); setError(k, m); if (m && !firstBad) firstBad = k; });
+      if (!termsBox.checked) { termsErr.textContent = 'Please tick the box to accept the Terms of Service and Privacy Notice.'; if (!firstBad) termsBox.focus(); }
       if (firstBad) { inputs[firstBad].focus(); return; }
+      if (!termsBox.checked) return;
       var payload = {
+        accept_terms: true,
         school_name: schoolIn.value.replace(/\s+/g, ' ').trim(), contact_name: nameIn.value.replace(/\s+/g, ' ').trim(),
         email: emailIn.value.trim(), phone: composedPhone(), password: passIn.value, company_website: hp.value
       };

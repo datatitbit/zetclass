@@ -60,7 +60,7 @@ function callWithHost(route, body, hostHeader) {
   });
 }
 
-const good = (n) => ({ school_name: n.school, contact_name: n.person || 'Ama Mensah', email: n.email, phone: n.phone, password: n.pw || 'Sunrise-2026!' });
+const good = (n) => ({ school_name: n.school, contact_name: n.person || 'Ama Mensah', email: n.email, phone: n.phone, password: n.pw || 'Sunrise-2026!', accept_terms: true });
 
 // ---------------------------------------------------------------
 section('1. Signup validation (every required field, plain-English errors)');
@@ -72,6 +72,8 @@ section('1. Signup validation (every required field, plain-English errors)');
   check('bad email is rejected', r.status === 400 && r.json.fields.email, r.json);
   r = await call('POST', 'register', good({ school: 'Test A', email: 'a@b.co', phone: '12' }));
   check('bad phone is rejected', r.status === 400 && r.json.fields.phone, r.json);
+  r = await call('POST', 'register', { ...good({ school: 'Test A', email: 'a@b.co', phone: '+233241234567' }), accept_terms: false });
+  check('signup is refused unless the Terms and Privacy box is ticked', r.status === 400 && r.json.fields.accept_terms, r.json);
   for (const [label, ph] of [['a local number with no country code', '0241234567'], ['a number with no + sign', '233241234567'], ['a country code that starts with 0', '+0241234567']]) {
     r = await call('POST', 'register', good({ school: 'Test A', email: 'a@b.co', phone: ph }));
     check(`signup refuses ${label} (country code required)`, r.status === 400 && r.json.fields.phone && /country code/i.test(r.json.fields.phone), r.json);

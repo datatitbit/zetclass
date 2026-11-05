@@ -91,13 +91,16 @@
       + 'Plan I want (Basic / Growth / Premium): \n'
       + 'Number of pupils: ';
     var contact = global.ZETCLASS_CONTACT || {};
+    var momo = contact.momo && contact.momo.number ? contact.momo : null;
     var waDigits = String(contact.whatsapp || '').replace(/\D+/g, '');
     var support = App.supportLine ? App.supportLine() : '';
 
     var steps = el('ol', { class: 'start-steps' }, [
       el('li', {}, [el('strong', { text: 'Pick a plan' }), el('div', { class: 'help', text: 'See the table above — Basic, Growth or Premium depends on how many pupils you have.' })]),
       el('li', {}, [el('strong', { text: 'Message us' }), el('div', { class: 'help', text: 'Tap the button below. It writes the message for you, with your school’s details.' })]),
-      el('li', {}, [el('strong', { text: 'Pay as we explain' }), el('div', { class: 'help', text: 'We reply with the payment details and confirm once we receive your payment.' })]),
+      el('li', {}, [el('strong', { text: 'Pay by Mobile Money' }), el('div', { class: 'help', text: momo
+        ? 'Pay to our MoMo Merchant: number ' + momo.number + ', Merchant ID ' + momo.merchantId + '. Then send us the transaction ID on WhatsApp and we confirm your payment.'
+        : 'We reply with the payment details and confirm once we receive your payment.' })]),
       el('li', {}, [el('strong', { text: 'Done' }), el('div', { class: 'help', text: 'Your status above changes to “Active” with your new “Paid until” date. No need to do anything else.' })])
     ]);
     var actions = el('div', { class: 'btn-row' });

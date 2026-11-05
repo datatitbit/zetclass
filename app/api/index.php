@@ -520,7 +520,10 @@ if ($head === 'register' && $method === 'POST') {
     list($email, $e3)       = valid_email_addr($b['email'] ?? '');
     list($phone, $e4)       = valid_phone_no($b['phone'] ?? '', true);
     list($password, $e5)    = valid_new_password($b['password'] ?? '', $email, $schoolName);
-    $fieldErrors = array_filter(['school_name' => $e1, 'contact_name' => $e2, 'email' => $e3, 'phone' => $e4, 'password' => $e5]);
+    // The person must accept the Terms of Service and Privacy Notice (app/terms.html, app/privacy.html).
+    // The version they accepted is written to the signup record in the activity log.
+    $e6 = !empty($b['accept_terms']) ? null : 'Please tick the box to accept the Terms of Service and Privacy Notice.';
+    $fieldErrors = array_filter(['school_name' => $e1, 'contact_name' => $e2, 'email' => $e3, 'phone' => $e4, 'password' => $e5, 'accept_terms' => $e6]);
     if ($fieldErrors) { out(['error' => 'Please fix the highlighted fields.', 'fields' => $fieldErrors], 400); }
 
     // One free trial per email / phone number (stops trial-farming). A genuine
@@ -552,7 +555,7 @@ if ($head === 'register' && $method === 'POST') {
             'email' => $email, 'phone' => $phone, 'contact_name' => $contactName,
             'created_via' => 'self-signup', 'trial_days' => $trialDays,
         ]);
-        audit($pdo, ['uid' => 'self-signup'], 'signup', $sid, null, ['name' => $schoolName, 'email' => $email]);
+        audit($pdo, ['uid' => 'self-signup'], 'signup', $sid, null, ['name' => $schoolName, 'email' => $email, 'terms_version' => '2026-11-05']);
         $pdo->commit();
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) { $pdo->rollBack(); }
