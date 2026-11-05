@@ -751,8 +751,15 @@
     // Opened from a school's own link (zetclass.com/st-marys-school)? Then greet that school.
     var known = !!(App.schoolSlugLabel && App.schoolIdHint);
     if (known) {
-      card.appendChild(U.el('div', { class: 'login-badge', text: initials(App.schoolSlugLabel) }));
-      card.appendChild(U.el('h1', { text: App.schoolSlugLabel }));
+      var linkBadge = U.el('div', { class: 'login-badge', text: initials(App.schoolSlugLabel) });
+      var linkHeading = U.el('h1', { text: App.schoolSlugLabel });
+      card.appendChild(linkBadge);
+      card.appendChild(linkHeading);
+      // The link only gives the address; fetch the school's real name for the heading.
+      DB.searchSchools(App.schoolIdHint.replace(/-/g, ' ')).then(function (rows) {
+        var m = (rows || []).filter(function (r) { return r.id === App.schoolIdHint; })[0];
+        if (m) { linkHeading.textContent = m.name; linkBadge.textContent = initials(m.name); }
+      }).catch(function () { /* the heading made from the address is fine */ });
       card.appendChild(U.el('p', { class: 'muted', text: 'Sign in to your school portal.' }));
     } else {
       card.appendChild(U.el('h1', { text: 'Sign in' }));
@@ -821,7 +828,7 @@
     function doLogin(e) {
       if (e) e.preventDefault();
       errBox.style.display = 'none';
-      var schoolVal = schoolInput.value.trim();
+      var schoolVal = known ? App.schoolIdHint : schoolInput.value.trim();   // from the school's own link, no need to type it
       var userVal = userInput.value.trim();
       var passVal = passInput.value;
       if (!schoolVal) { showError('Please enter your school’s name.'); schoolInput.focus(); return; }
@@ -847,7 +854,18 @@
 
     var form = U.el('form', { class: 'form login-form', onsubmit: doLogin });
     form.appendChild(errBox);
-    form.appendChild(field('School name', schoolInput, U.el('div', { class: 'help', text: 'Type the full name and pick your school from the list.' })));
+    var schoolField = field('School name', schoolInput, U.el('div', { class: 'help', text: 'Type the full name and pick your school from the list.' }));
+    form.appendChild(schoolField);
+    if (known) {
+      // Came through the school's own link (zetclass.com/<school>): the school is already known, so the box is
+      // hidden. The sign-in itself is the same either way (school + user type + username + password).
+      schoolField.style.display = 'none';
+      var switchLine = U.el('p', { class: 'help', style: 'margin:-.2rem 0 .8rem' }, [document.createTextNode('Not your school? '),
+        U.el('a', { href: '#', text: 'Choose a different school', onclick: function (ev) {
+          ev.preventDefault(); known = false; schoolInput.value = ''; schoolField.style.display = ''; switchLine.style.display = 'none'; schoolInput.focus();
+        } })]);
+      form.appendChild(switchLine);
+    }
     form.appendChild(suggest);
     form.appendChild(field('User type', typeSel, typeHelp));
     form.appendChild(field('Username', userInput, U.el('div', { class: 'help', text: 'Given to you by your school’s administrator.' })));
@@ -870,7 +888,7 @@
     wrap.appendChild(brandPanel('Sign up', '/signup')); wrap.appendChild(card);
     root.appendChild(wrap);
     // Land on the first EMPTY box so a returning visitor can just start typing.
-    (!schoolInput.value ? schoolInput : (!typeSel.value ? typeSel : userInput)).focus();
+    (known ? (!typeSel.value ? typeSel : userInput) : (!schoolInput.value ? schoolInput : (!typeSel.value ? typeSel : userInput))).focus();
   }
 
   // ============================================================
@@ -1145,6 +1163,78 @@
       toggle.textContent = show ? 'Hide' : 'Show';
       toggle.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
     } });
+    // YOUR SCHOOL'S WEB ADDRESS: zetclass.com/<address>. Three free suggestions come from the school name
+    // (main name · full name without hyphens · main name + details); the person may pick one or type their own.
+    // A live check says whether it is free and allowed, and a tick box records their agreement.
+    section('Your school’s web address');
+    var slugIn = U.el('input', { type: 'text', maxlength: '40', autocapitalize: 'none', spellcheck: 'false', autocomplete: 'off', placeholder: 'e.g. st-marys' });
+    var slugPrefix = U.el('span', { class: 'slug-prefix', text: 'zetclass.com/' });
+    var slugStatus = U.el('div', { class: 'slug-status', 'aria-live': 'polite' });
+    var slugChips = U.el('div', { class: 'slug-chips' });
+    var slugTouched = false, slugOk = false, slugTimer = null, sugTimer = null, lastSugKey = '';
+    var slugField = addField('school_id', 'Web address', slugIn, '', U.el('div', { class: 'slug-group' }, [slugPrefix, slugIn]), true);
+    slugField.classList.add('span2');
+    slugField.insertBefore(U.el('div', { class: 'slug-label', text: 'Suggestions (tap one, or type your own below):' }), slugField.children[1]);
+    slugField.insertBefore(slugChips, slugField.children[2]);
+    slugField.appendChild(slugStatus);
+    var urlNote = U.el('div', { class: 'notice-info span2', role: 'note' }, [icon('lock'), U.el('span', {}, [
+      document.createTextNode('This name becomes your school’s web address: '), U.el('b', { class: 'slug-live', text: 'zetclass.com/your-school' }),
+      document.createTextNode('. You will use it on sign-in links, notices and QR codes, so choose carefully. It cannot be changed later without contacting Zetranova.')])]);
+    grid.appendChild(urlNote);
+    var urlBox = U.el('input', { type: 'checkbox', id: 'f-confirm_url' });
+    var urlErr = U.el('div', { class: 'field-error', id: 'err-confirm_url', 'aria-live': 'polite' });
+    var urlTxt = U.el('span', {}, [document.createTextNode('I agree that “'), U.el('b', { class: 'slug-live-id', text: 'your-school' }), document.createTextNode('” is added to zetclass.com as my school’s web address.'), reqStar()]);
+    grid.appendChild(U.el('div', { class: 'field span2' }, [U.el('label', { for: 'f-confirm_url', class: 'check-card' }, [urlBox, urlTxt]), reqNote(true), urlErr]));
+    urlBox.addEventListener('change', function () { if (urlBox.checked) urlErr.textContent = ''; });
+
+    function cleanSlug(v) { return String(v || '').toLowerCase().replace(/[\s_]+/g, '-').replace(/[^a-z0-9-]/g, '').replace(/-{2,}/g, '-').replace(/^-+/, ''); }
+    function paintSlugLive() {
+      var v = slugIn.value || 'your-school';
+      U.$all('.slug-live').forEach(function (n) { n.textContent = 'zetclass.com/' + v; });
+      U.$all('.slug-live-id').forEach(function (n) { n.textContent = v; });
+      U.$all('.slug-chip', slugChips).forEach(function (c) { c.classList.toggle('on', c.getAttribute('data-slug') === slugIn.value); });
+    }
+    function checkSlug() {
+      clearTimeout(slugTimer);
+      var v = slugIn.value;
+      slugOk = false;
+      if (!v) { slugStatus.className = 'slug-status'; slugStatus.textContent = ''; return; }
+      slugStatus.className = 'slug-status wait'; slugStatus.textContent = 'Checking…';
+      slugTimer = setTimeout(function () {
+        DB.slugCheck(v, schoolIn.value.replace(/\s+/g, ' ').trim()).then(function (r) {
+          if (slugIn.value !== v) return;   // typed more since: ignore the old answer
+          slugOk = !!(r && r.ok);
+          slugStatus.className = 'slug-status ' + (slugOk ? 'ok' : 'bad');
+          slugStatus.textContent = slugOk ? '✓ Available: zetclass.com/' + v : '✗ ' + ((r && r.message) || 'Please choose another address.');
+        }).catch(function () { slugStatus.className = 'slug-status'; slugStatus.textContent = ''; });
+      }, 300);
+    }
+    function pickSlug(v) { slugIn.value = v; slugTouched = false; setError('school_id', ''); paintSlugLive(); checkSlug(); }
+    function loadSuggestions() {
+      var nm = schoolIn.value.replace(/\s+/g, ' ').trim(), town = localityIn.value.trim();
+      if (nm.length < 3) { U.clear(slugChips); slugChips.appendChild(U.el('span', { class: 'help', text: 'Type your school name above and we will suggest addresses.' })); return; }
+      var key = nm + '|' + town;
+      if (key === lastSugKey) return;
+      lastSugKey = key;
+      DB.slugSuggest(nm, town).then(function (r) {
+        if (lastSugKey !== key) return;
+        U.clear(slugChips);
+        var list = (r && r.suggestions) || [];
+        list.forEach(function (sg) {
+          slugChips.appendChild(U.el('button', { type: 'button', class: 'slug-chip', 'data-slug': sg.slug, onclick: function () { pickSlug(sg.slug); } }, [U.el('b', { text: sg.slug }), U.el('small', { text: sg.label })]));
+        });
+        if (list.length && !slugTouched) pickSlug(list[0].slug);   // the main name is the default
+        else paintSlugLive();
+      }).catch(function () { /* suggestions are a nicety: the person can still type an address */ });
+    }
+    slugIn.addEventListener('input', function () {
+      var c = cleanSlug(slugIn.value); if (c !== slugIn.value) slugIn.value = c;
+      slugTouched = true; setError('school_id', ''); paintSlugLive(); checkSlug();
+    });
+    function scheduleSuggest() { clearTimeout(sugTimer); sugTimer = setTimeout(loadSuggestions, 450); }
+    schoolIn.addEventListener('input', scheduleSuggest);
+    localityIn.addEventListener('input', scheduleSuggest);
+    loadSuggestions(); paintSlugLive();
     section('Secure your account');
     addField('password', 'Create a password', passIn, '',
       U.el('div', { class: 'pw-wrap' }, [passIn, toggle]), true);
@@ -1173,7 +1263,13 @@
     };
     checks.district = function () { return !isGhana() || districtSel.value ? '' : 'Please choose your district.'; };
     checks.locality = function () { return localityIn.value.trim().length >= 2 ? '' : 'Please enter your town or area.'; };
-    var order = ['school_name', 'email', 'phone', 'whatsapp', 'region', 'district', 'locality', 'password'];
+    checks.school_id = function () {
+      var v = slugIn.value;
+      if (!v) return 'Please choose your school’s web address.';
+      if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(v) || v.length < 3 || v.length > 40) return 'Use 3 to 40 letters, numbers or hyphens, with no spaces.';
+      return '';
+    };
+    var order = ['school_name', 'email', 'phone', 'whatsapp', 'region', 'district', 'locality', 'school_id', 'password'];
     order.filter(function (k) { return k !== 'region' && k !== 'district'; }).forEach(function (k) {
       inputs[k].addEventListener('blur', function () { if (inputs[k].value) setError(k, checks[k]()); });
       // Clear a shown error as soon as the person starts fixing it.
@@ -1244,13 +1340,16 @@
       var firstBad = null;
       order.forEach(function (k) { var m = checks[k](); setError(k, m); if (m && !firstBad) firstBad = k; });
       if (!authBox.checked) { authErr.textContent = 'Please confirm that you are the owner or an authorised representative of this school.'; }
+      if (!urlBox.checked) { urlErr.textContent = 'Please tick the box to agree that this address is added to zetclass.com.'; }
       if (!termsBox.checked) { termsErr.textContent = 'Please tick the box to accept the Terms of Service and Privacy Notice.'; if (!firstBad) termsBox.focus(); }
       if (firstBad) { showAlert(checks[firstBad](), true); goTo(inputs[firstBad]); return; }
       if (!authBox.checked) { showAlert('Please confirm that you are the owner or an authorised representative of this school.'); return; }
+      if (!urlBox.checked) { showAlert('Please tick the box to agree that this address is added to zetclass.com.'); return; }
       if (!termsBox.checked) { showAlert('Please tick the box to accept the Terms of Service and Privacy Notice.'); return; }
       var payload = {
         confirm_authority: true,
         accept_terms: true,
+        school_id: slugIn.value, confirm_url: true,
         school_name: schoolIn.value.replace(/\s+/g, ' ').trim(),
         email: emailIn.value.trim(), phone: composedPhone(), whatsapp: waBox.composed(), country: countrySel.value, website: websiteIn.value.trim(),
         region: isGhana() ? regionSel.value : regionTxt.value.trim(), district: isGhana() ? districtSel.value : '', locality: localityIn.value.trim(), postal_address: postalIn.value.trim(),
@@ -1269,6 +1368,7 @@
         btn.disabled = false; btn.textContent = 'Create my school';
         var f = err && err.body && err.body.fields, firstField = null;
         if (f) order.forEach(function (k) { if (f[k]) { setError(k, f[k]); if (!firstField) firstField = k; } });
+        if (f && f.confirm_url) urlErr.textContent = f.confirm_url;
         // ALWAYS say something beside the button, with the technical code so it can be reported.
         var msg = (err && err.message) || 'Something went wrong. Please try again.';
         if (f) {

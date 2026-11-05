@@ -255,6 +255,114 @@ function valid_school_slug($sid, $reserved) {
     return !in_array(strtolower($sid), $reserved, true);
 }
 
+/* ---- School web address (zetclass.com/<address>) ------------------------------------------
+ * A school picks its own short address at signup. Rules:
+ *   - 3 to 40 characters: lowercase letters, numbers and single hyphens, not all digits;
+ *   - not one of Zetclass's own words, and not an official body's name (so nobody can pose as GES, NaSIA...);
+ *   - not already used by another school;
+ *   - it must BEAR PART OF THE SCHOOL'S NAME (a distinctive word of it, or its initials), so nobody can
+ *     take a name that has nothing to do with their school.
+ * slug_suggest() proposes three addresses from the school name:
+ *   1. the main name, without words such as Primary / JHS / School   (st-marys)
+ *   2. the full name with no hyphens                                   (stmarysbasicschool)
+ *   3. the main name plus its details, e.g. JHS / Primary / Basic     (st-marys-basic)
+ * Taken ones are adjusted (town added, then a number) so every suggestion shown is free. */
+$SLUG_GENERIC = ['the', 'school', 'schools', 'basic', 'primary', 'junior', 'high', 'jhs', 'shs', 'jss', 'sss', 'senior', 'secondary',
+    'nursery', 'kindergarten', 'kg', 'creche', 'preparatory', 'prep', 'academy', 'college', 'international', 'complex', 'educational', 'institute'];
+$SLUG_BLOCKED = ['zetclass', 'zetranova', 'ges', 'moe', 'nasia', 'waec', 'gov', 'government', 'ministry', 'police', 'army', 'cocobod',
+    'mtn', 'telecel', 'vodafone', 'airteltigo', 'momo', 'whatsapp', 'facebook', 'google', 'youtube', 'microsoft', 'namecheap'];
+
+function slug_tokens($text) {
+    $s = strtolower((string)$text);
+    $s = str_replace(["'", "\xE2\x80\x99"], '', $s);
+    $s = preg_replace('/[^a-z0-9]+/', ' ', $s);
+    $t = preg_split('/\s+/', trim($s), -1, PREG_SPLIT_NO_EMPTY);
+    return $t ?: [];
+}
+function slug_core_tokens($name) {
+    global $SLUG_GENERIC;
+    $t = slug_tokens($name);
+    $core = array_values(array_filter($t, function ($w) use ($SLUG_GENERIC) { return !in_array($w, $SLUG_GENERIC, true); }));
+    return $core ?: $t;
+}
+function slug_acronyms($name) {
+    global $SLUG_GENERIC;
+    $t = slug_tokens($name); $out = [];
+    foreach ([$t, array_values(array_filter($t, function ($w) use ($SLUG_GENERIC) { return !in_array($w, $SLUG_GENERIC, true) && $w !== 'of' && $w !== 'and'; }))] as $set) {
+        $a = ''; foreach ($set as $w) { $a .= $w[0]; }
+        if (strlen($a) >= 3) { $out[] = $a; }
+    }
+    return array_values(array_unique($out));
+}
+// Does the address contain a distinctive part of the school's name, or its initials?
+function slug_relates_to_name($slug, $name) {
+    global $SLUG_GENERIC;
+    $compact = str_replace('-', '', $slug);
+    $core = array_values(array_filter(slug_tokens($name), function ($w) use ($SLUG_GENERIC) { return !in_array($w, $SLUG_GENERIC, true); }));
+    $cand = array_values(array_filter($core, function ($w) { return strlen($w) >= 3; }));
+    if (!$cand) { $cand = array_values(array_filter($core, function ($w) { return strlen($w) >= 2; })); }
+    if (!$cand) { $cand = slug_tokens($name); }
+    foreach ($cand as $w) { if ($w !== '' && strpos($compact, $w) !== false) { return true; } }
+    foreach (slug_acronyms($name) as $a) { if (strpos($compact, $a) !== false) { return true; } }
+    return false;
+}
+// null when the address is fine, otherwise [code, plain-English message].
+function slug_problem($pdo, $slug, $name, $reserved) {
+    global $SLUG_BLOCKED;
+    $slug = strtolower(trim((string)$slug));
+    if (!preg_match('/^[a-z0-9]+(-[a-z0-9]+)*$/', $slug) || strlen($slug) < 3 || strlen($slug) > 40 || ctype_digit(str_replace('-', '', $slug))) {
+        return ['invalid', 'Use 3 to 40 letters, numbers or hyphens, with no spaces (for example st-marys).'];
+    }
+    if (in_array($slug, $reserved, true)) { return ['reserved', 'That address is kept for Zetclass. Please choose another.']; }
+    foreach (explode('-', $slug) as $part) {
+        if (in_array($part, $SLUG_BLOCKED, true)) { return ['blocked', 'That name is reserved for an official organisation. Please choose another.']; }
+    }
+    $st = $pdo->prepare("SELECT id FROM schools WHERE id=?"); $st->execute([$slug]);
+    if ($st->fetch()) { return ['taken', 'That address is already taken by another school. Try adding your town, for example ' . $slug . '-kumasi.']; }
+    if (trim((string)$name) !== '' && !slug_relates_to_name($slug, $name)) {
+        return ['unrelated', 'The address should include part of your school’s name, or its initials.'];
+    }
+    return null;
+}
+// The "details" words that were dropped from the main name, in short form (JHS, Primary, Basic...).
+function slug_detail_words($name) {
+    $t = slug_tokens($name); $out = [];
+    for ($i = 0; $i < count($t); $i++) {
+        $w = $t[$i]; $nx = $t[$i + 1] ?? '';
+        if (($w === 'junior' || $w === 'senior') && $nx === 'high') { $out[] = $w === 'junior' ? 'jhs' : 'shs'; $i++; continue; }
+        if ($w === 'preparatory') { $out[] = 'prep'; continue; }
+        if ($w === 'international') { $out[] = 'intl'; continue; }
+        if (in_array($w, ['jhs', 'shs', 'jss', 'sss', 'primary', 'basic', 'nursery', 'kindergarten', 'kg', 'creche', 'prep', 'academy', 'college', 'secondary', 'junior', 'senior', 'high'], true)) { $out[] = $w; }
+    }
+    return array_values(array_unique($out));
+}
+// Up to three FREE addresses: [['slug'=>..., 'kind'=>'short'|'full'|'details', 'label'=>...], ...]
+function slug_suggest($pdo, $name, $town, $reserved) {
+    $core = slug_core_tokens($name);
+    $all = slug_tokens($name);
+    if (!$core) { return []; }
+    $townSlug = implode('-', slug_tokens($town));
+    $details = slug_detail_words($name);
+    $cands = [
+        ['short', 'Main name', implode('-', $core)],
+        ['full', 'Full name, no hyphens', implode('', $all)],
+        ['details', 'Name + details', implode('-', array_merge($core, $details ?: ($townSlug !== '' ? [$townSlug] : ['school'])))],
+    ];
+    $out = []; $used = [];
+    foreach ($cands as $c) {
+        list($kind, $label, $base) = $c;
+        $base = trim(substr($base, 0, 40), '-');
+        $try = [$base];
+        if ($townSlug !== '' && strpos($base, $townSlug) === false) { $try[] = trim(substr($base . '-' . $townSlug, 0, 40), '-'); }
+        for ($n = 2; $n <= 9; $n++) { $try[] = trim(substr($base, 0, 38), '-') . '-' . $n; }
+        foreach ($try as $s) {
+            if (isset($used[$s])) { continue; }
+            if (slug_problem($pdo, $s, $name, $reserved) === null) { $out[] = ['slug' => $s, 'kind' => $kind, 'label' => $label]; $used[$s] = true; break; }
+        }
+    }
+    return $out;
+}
+
 /* Derives a URL slug from a school's display name when the caller leaves
  * school_id blank — lowercase, hyphens between words, truncated at a whole
  * word so long names stay readable. Mirrors slugify() in app/js/platform.js
@@ -406,6 +514,24 @@ if ($head === 'schools' && $arg === 'search' && $method === 'GET') {
     $st = $pdo->prepare("SELECT id, name FROM schools WHERE name_key LIKE ? AND status IN ('active','trial','grace') ORDER BY name LIMIT 8");
     $st->execute(['%' . $key . '%']);
     out(array_map(function ($r) { return ['id' => $r['id'], 'name' => $r['name']]; }, $st->fetchAll()));
+}
+
+/* ============================================================
+ * PUBLIC: web-address helper for the signup form (names only, nothing private)
+ *   GET ?r=schools/slug-suggest&name=<school name>&town=<town>  -> {suggestions:[{slug,kind,label}]}
+ *   GET ?r=schools/slug-check&s=<address>&name=<school name>     -> {ok, code, message}
+ * Rate-limited per address, like the school-name search.
+ * ============================================================ */
+if ($head === 'schools' && ($arg === 'slug-suggest' || $arg === 'slug-check') && $method === 'GET') {
+    if (!rate_limit($pdo, 'sslug:' . client_ip(), 240, 60)) {
+        out(['error' => 'Too many checks. Please wait a minute and try again.'], 429);
+    }
+    $nm = clean_text($_GET['name'] ?? '', 120);
+    if ($arg === 'slug-suggest') {
+        out(['suggestions' => slug_suggest($pdo, $nm, clean_text($_GET['town'] ?? '', 80), $RESERVED_SLUGS)]);
+    }
+    $p = slug_problem($pdo, (string)($_GET['s'] ?? ''), $nm, $RESERVED_SLUGS);
+    out($p === null ? ['ok' => true] : ['ok' => false, 'code' => $p[0], 'message' => $p[1]]);
 }
 
 /* ============================================================
@@ -624,6 +750,16 @@ if ($head === 'register' && $method === 'POST') {
     // The declaration (with time and connection address) is written to the signup record, as evidence.
     $e7 = !empty($b['confirm_authority']) ? null : 'Please confirm that you are the owner or an authorised representative of this school.';
     list($extras, $extraErrs) = valid_school_extras($b, true);
+    // The school's chosen web address (zetclass.com/<address>) and the agreement that it is added to zetclass.com.
+    // A caller that sends no address (an older client) gets one made from the name, as before.
+    $wantSlug = strtolower(trim((string)($b['school_id'] ?? '')));
+    $e8 = null; $e9 = null;
+    if ($wantSlug !== '') {
+        $sp = slug_problem($pdo, $wantSlug, $e1 ? '' : $schoolName, $RESERVED_SLUGS);
+        if ($sp) { $e8 = $sp[1]; }
+        if (empty($b['confirm_url'])) { $e9 = 'Please tick the box to agree that this address is added to zetclass.com.'; }
+    }
+    $extraErrs += array_filter(['school_id' => $e8, 'confirm_url' => $e9]);
     $fieldErrors = array_filter(['school_name' => $e1, 'contact_name' => $e2, 'email' => $e3, 'phone' => $e4, 'password' => $e5, 'confirm_authority' => $e7, 'accept_terms' => $e6] + $extraErrs);
     if ($fieldErrors) { out(['error' => 'Please fix the highlighted fields.', 'fields' => $fieldErrors], 400); }
 
@@ -643,14 +779,18 @@ if ($head === 'register' && $method === 'POST') {
     }
 
     // Web address: derived from the name, made unique with -2, -3 ...
-    $base = slugify_school_name($schoolName);
-    if (!valid_school_slug($base, $RESERVED_SLUGS)) { $base = 'school'; }
-    $sid = $base;
-    $chk = $pdo->prepare("SELECT id FROM schools WHERE id=?");
-    for ($n = 2; $n < 500; $n++) {
-        $chk->execute([$sid]);
-        if (!$chk->fetch()) { break; }
-        $sid = $base . '-' . $n;
+    if ($wantSlug !== '') {
+        $sid = $wantSlug;   // already checked above: valid, free, related to the name
+    } else {
+        $base = slugify_school_name($schoolName);
+        if (!valid_school_slug($base, $RESERVED_SLUGS)) { $base = 'school'; }
+        $sid = $base;
+        $chk = $pdo->prepare("SELECT id FROM schools WHERE id=?");
+        for ($n = 2; $n < 500; $n++) {
+            $chk->execute([$sid]);
+            if (!$chk->fetch()) { break; }
+            $sid = $base . '-' . $n;
+        }
     }
 
     $trialDays = max(1, (int)($cfg['TRIAL_DAYS'] ?? 30));
@@ -662,7 +802,7 @@ if ($head === 'register' && $method === 'POST') {
             'email' => $email, 'phone' => $phone, 'contact_name' => $contactName,
             'created_via' => 'self-signup', 'trial_days' => $trialDays,
         ] + $extras);
-        audit($pdo, ['uid' => 'self-signup'], 'signup', $sid, null, ['name' => $schoolName, 'email' => $email, 'terms_version' => '2026-11-05c', 'authority_declared' => true, 'ip' => $ip]);
+        audit($pdo, ['uid' => 'self-signup'], 'signup', $sid, null, ['name' => $schoolName, 'email' => $email, 'terms_version' => '2026-11-05d', 'authority_declared' => true, 'web_address' => $sid, 'web_address_agreed' => $wantSlug !== '', 'ip' => $ip]);
         $pdo->commit();
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) { $pdo->rollBack(); }

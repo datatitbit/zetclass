@@ -119,3 +119,19 @@ details.optional-details[open] summary::before { content: "\2013"; }
 
 .login-wrap .form select.input-error { border-color: #b3261e; box-shadow: 0 0 0 3px rgba(179,38,30,.12); }
 .login-wrap .form select:disabled { background: #f1f4f3; color: #7a8a88; cursor: not-allowed; }
+
+/* School web address: suggestions, live check, agreement. */
+.slug-group { display: flex; align-items: stretch; }
+.slug-prefix { display: flex; align-items: center; padding: 0 .7rem; border: 1px solid #c9d6d3; border-right: 0; border-radius: 10px 0 0 10px; background: #eef3f2; font-weight: 600; color: var(--teal-dark); white-space: nowrap; }
+.slug-group input { border-radius: 0 10px 10px 0 !important; flex: 1; min-width: 0; font-weight: 600; }
+.slug-label { font-size: .8rem; color: var(--muted); margin: .1rem 0 .35rem; }
+.slug-chips { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .6rem; }
+.slug-chip { display: flex; flex-direction: column; align-items: flex-start; gap: .05rem; text-align: left; padding: .5rem .75rem; border: 1px solid #c9d6d3; border-radius: 10px; background: #fff; cursor: pointer; font: inherit; color: var(--ink); }
+.slug-chip b { font-size: .95rem; word-break: break-all; }
+.slug-chip small { color: var(--muted); font-size: .72rem; }
+.slug-chip:hover { border-color: var(--teal); background: var(--teal-light); }
+.slug-chip.on { border-color: var(--teal); background: var(--teal-light); box-shadow: 0 0 0 2px rgba(15,94,94,.18); }
+.slug-status { margin-top: .4rem; font-size: .85rem; font-weight: 600; min-height: 1.2em; }
+.slug-status.ok { color: #1b6b3a; } .slug-status.bad { color: #b3261e; } .slug-status.wait { color: var(--muted); font-weight: 500; }
+.notice-info { display: flex; gap: .6rem; background: #eef6ff; border: 1px solid #bcd4ee; border-radius: 10px; padding: .6rem .75rem; margin: .2rem 0 .8rem; font-size: .85rem; color: #1f3f63; line-height: 1.4; }
+.notice-info svg { flex: none; width: 1.1rem; height: 1.1rem; margin-top: .1rem; color: #1f5b99; }

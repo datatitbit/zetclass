@@ -163,6 +163,34 @@ let sa, sb, sc, sd;
   check('…but fewer than 3 letters returns nothing (so the list cannot be dumped)', sg.status === 200 && Array.isArray(sg.json) && sg.json.length === 0, sg.json);
   sg = await call('GET', 'schools/search', null, null, { q: 'zzzzqqqq' });
   check('…and a name that does not exist returns an empty list', sg.status === 200 && sg.json.length === 0, sg.json);
+
+  // --- the school's web address: three suggestions, a live check, and the agreement tick ---
+  const sug = async (name, town) => (await call('GET', 'schools/slug-suggest', null, null, { name, town })).json.suggestions.map(x => x.slug);
+  let sl = await sug("St. Mary's Basic School", 'Kumasi');
+  check('suggestions: 1 main name, 2 full name with no hyphens, 3 main name + details', JSON.stringify(sl) === JSON.stringify(['st-marys', 'stmarysbasicschool', 'st-marys-basic']), sl);
+  sl = await sug('Achimota Junior High School', 'Accra');
+  check('suggestions drop JHS from the main name and keep it for the third', JSON.stringify(sl) === JSON.stringify(['achimota', 'achimotajuniorhighschool', 'achimota-jhs']), sl);
+  sl = await sug('Bright Future Academy', 'Accra');
+  check('a phrase stays a phrase (bright-future); a suggestion already taken by another school gets the town added', sl[0] === 'bright-future' && sl[1] === 'brightfutureacademy' && sl[2] === 'bright-future-academy-accra', sl);
+  sl = await sug('Mfantsipim School', 'Cape Coast');
+  check('a one-word main name works, and details fall back to the town', sl[0] === 'mfantsipim' && sl[1] === 'mfantsipimschool' && sl[2] === 'mfantsipim-cape-coast', sl);
+  const chk = async (slug, name) => (await call('GET', 'schools/slug-check', null, null, { s: slug, name })).json;
+  check('address check: a good, free address is OK', (await chk('st-marys', "St. Mary's Basic School")).ok === true);
+  check('address check: too short / bad characters is invalid', (await chk('a', 'Anything School')).code === 'invalid' && (await chk('bad name!', 'Bad Name School')).code === 'invalid');
+  check('address check: Zetclass’s own words are reserved', (await chk('admin', 'Admin School')).code === 'reserved' && (await chk('api', 'Api School')).code === 'reserved');
+  check('address check: an official body’s name is blocked', (await chk('ges-kumasi', 'Kumasi Basic School')).code === 'blocked' && (await chk('zetclass-school', 'Zetclass Academy')).code === 'blocked');
+  check('address check: it must bear part of the school name', (await chk('best-bank', "St. Mary's Basic School")).code === 'unrelated');
+  check('address check: initials of the name are allowed', (await chk('smbs', "St. Mary's Basic School")).ok === true);
+  check('address check: an address already used by another school is taken', (await chk('bright-future-academy', 'Bright Future Academy')).code === 'taken');
+  let r = await call('POST', 'register', { ...good({ school: 'Zion Hill Academy', email: 'zion@hill.example', phone: '+233205550777' }), school_id: 'zion-hill' });
+  check('signup with a chosen address is refused unless the agreement box is ticked', r.status === 400 && r.json.fields.confirm_url && !r.json.fields.school_id, r.json);
+  r = await call('POST', 'register', { ...good({ school: 'Zion Hill Academy', email: 'zion@hill.example', phone: '+233205550777' }), school_id: 'best-bank', confirm_url: true });
+  check('signup with an address unrelated to the school name is refused', r.status === 400 && r.json.fields.school_id, r.json);
+  r = await call('POST', 'register', { ...good({ school: 'Zion Hill Academy', email: 'zion@hill.example', phone: '+233205550777' }), school_id: 'admin', confirm_url: true });
+  check('signup with a reserved address is refused', r.status === 400 && r.json.fields.school_id, r.json);
+  r = await call('POST', 'register', { ...good({ school: 'Zion Hill Academy', email: 'zion@hill.example', phone: '+233205550777' }), school_id: 'bright-future-academy', confirm_url: true });
+  check('signup with an address that is already taken is refused', r.status === 400 && r.json.fields.school_id, r.json);
+
   let d = await call('POST', 'register', good({ ...C, school: 'Another One', phone: '+233200000009' }));
   check('same EMAIL twice is blocked (one trial per email) — 409', d.status === 409, d);
   d = await call('POST', 'register', good({ ...C, school: 'Another Two', email: 'new@school.example' }));
@@ -626,6 +654,16 @@ section('12. Brute-force and signup flood protection');
     if (r.status === 201) created++;
   }
   check('signup flood is cut off (limit per address per hour)', created <= 5 && r.status === 429, { created, last: r.status });
+}
+
+// ---------------------------------------------------------------
+section('12. A school that chooses its own web address (run last: it uses a signup from the hourly allowance)');
+if (dbAvailable()) { dbRun("DELETE FROM rate_limits WHERE k LIKE 'reg:%' OR k LIKE 'regday:%' OR k LIKE 'regtry:%'"); }
+{
+  const rz = await call('POST', 'register', { ...good({ school: 'Zion Hill Academy', email: 'zion@hill.example', phone: '+233205550777' }), school_id: 'zion-hill', confirm_url: true });
+  check('signup with a good chosen address uses it as the school’s web address', rz.status === 201 && rz.json.school_id === 'zion-hill', rz.json);
+  const gone = await call('GET', 'schools/slug-check', null, null, { s: 'zion-hill', name: 'Zion Hill Academy' });
+  check('…and that address is then shown as taken', gone.json.ok === false && gone.json.code === 'taken', gone.json);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

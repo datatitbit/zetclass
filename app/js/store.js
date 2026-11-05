@@ -197,6 +197,13 @@
   ApiAdapter.prototype.searchSchools = function (q) {
     return this._req('GET', 'schools/search', null, { noAuth: true, query: { q: q } });
   };
+  // Web-address helper for the signup form: three free suggestions, and a live check of what was typed.
+  ApiAdapter.prototype.slugSuggest = function (name, town) {
+    return this._req('GET', 'schools/slug-suggest', null, { noAuth: true, query: { name: name, town: town } });
+  };
+  ApiAdapter.prototype.slugCheck = function (slug, name) {
+    return this._req('GET', 'schools/slug-check', null, { noAuth: true, query: { s: slug, name: name } });
+  };
   // Self-service signup. The server creates the school + its Admin login and
   // answers with a ready session token, so the new school lands straight in
   // the app. Field-level problems come back as err.body.fields = {field: msg}.
@@ -311,6 +318,8 @@
       if (!DB.isApi) return Promise.reject(new Error('apiLogin is only available when DB_CONFIG.useApi is true.'));
       return adapter.login(username, password, schoolId, userType);
     },
+    slugSuggest: function (name, town) { return DB.isApi ? adapter.slugSuggest(name, town) : Promise.resolve({ suggestions: [] }); },
+    slugCheck: function (slug, name) { return DB.isApi ? adapter.slugCheck(slug, name) : Promise.resolve({ ok: true }); },
     searchSchools: function (q) { return DB.isApi ? adapter.searchSchools(q) : Promise.resolve([]); },
     apiRegister: function (form) {
       if (!DB.isApi) return Promise.reject(new Error('Signup is only available on the live service.'));
